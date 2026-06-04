@@ -498,13 +498,13 @@ function renderGantt(){
     cur.setDate(cur.getDate()+Math.max(1,Math.floor(span/8)));
   }
 
-  const priColors={'Alta':'#c8303a','Media':'#c9880a','Baja':'#19a34a'};
+  const priGradients={'Alta':'linear-gradient(90deg,#c8303a,#f4a0a0)','Media':'linear-gradient(90deg,#c9880a,#fde68a)','Baja':'linear-gradient(90deg,#19a34a,#a7f3c0)'};
 
   const rows=tWithDates.map(t=>{
     const s=new Date(t.startDate), e=new Date(t.date);
     const left=((s-minD)/(maxD-minD))*100;
     const width=Math.max(1,((e-s)/(maxD-minD))*100);
-    const color=t.done?'#aab4c0':(priColors[t.pri]||'var(--acc)');
+    const color=t.done?'linear-gradient(90deg,#aab4c0,#d5dae2)':(priGradients[t.pri]||'linear-gradient(90deg,#2d7dd2,#93c5fd)');
     return `<tr>
       <td style="font-size:.72rem;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px;" title="${t.title}">${t.title}</td>
       <td style="font-size:.65rem;color:var(--muted);white-space:nowrap;">${t.startDate.slice(5).replace('-','/')}</td>
