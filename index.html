@@ -227,7 +227,20 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
       <div class="field"><label>Prioridad</label><select id="f-pri"><option>Alta</option><option selected>Media</option><option>Baja</option></select></div>
       <div class="field"><label>Área</label><select id="f-area"><option value="">Sin área</option></select></div>
     </div>
-    <div class="field"><label>Responsable</label><input id="f-resp" placeholder="Nombre o correo..."></div>
+    <div class="field-row">
+      <div class="field"><label>Responsable</label><input id="f-resp" placeholder="Nombre o correo..."></div>
+      <div class="field"><label>Frecuencia</label>
+        <select id="f-freq">
+          <option value="">Sin frecuencia</option>
+          <option>Única vez</option>
+          <option>Diaria</option>
+          <option>Semanal</option>
+          <option>Quincenal</option>
+          <option>Mensual</option>
+          <option>Anual</option>
+        </select>
+      </div>
+    </div>
     <div class="field-row">
       <div class="field"><label>Fecha inicio</label><input type="date" id="f-start"></div>
       <div class="field"><label>Fecha límite</label><input type="date" id="f-date"></div>
@@ -359,6 +372,7 @@ window.saveTask = async () => {
     pri: document.getElementById('f-pri').value,
     area: document.getElementById('f-area').value,
     resp: document.getElementById('f-resp').value.trim(),
+    freq: document.getElementById('f-freq').value,
     startDate: document.getElementById('f-start').value,
     date: document.getElementById('f-date').value,
     progress: parseInt(document.getElementById('f-prog').value)||0,
@@ -602,6 +616,7 @@ function renderList(){
     const startLbl=t.startDate?`<span class="date-badge">🗓 ${t.startDate.slice(5).replace('-','/')}</span>`:'';
     const areaLbl=t.area?`<span class="badge b-area">${t.area}</span>`:'';
     const respLbl=t.resp?`<span class="badge b-resp">👤 ${t.resp}</span>`:'';
+    const freqLbl=t.freq?`<span class="badge" style="background:#f0f3f7;color:var(--muted)">🔁 ${t.freq}</span>`:'';
     const titleEsc=(t.title||'').replace(/</g,'&lt;');
     const noteEsc=(t.note||'').replace(/</g,'&lt;');
     return `<div class="task-card${t.done?' done':''}">
@@ -611,7 +626,7 @@ function renderList(){
         ${t.note?`<div class="task-note">${noteEsc}</div>`:''}
         <div class="task-meta">
           <span class="badge p-${t.pri}">${t.pri}</span>
-          ${areaLbl}${respLbl}${startLbl}${dateLbl}
+          ${areaLbl}${respLbl}${freqLbl}${startLbl}${dateLbl}
         </div>
         <div class="task-progress">
           <div class="prog-bg"><div class="prog-fg" style="width:${prog}%"></div></div>
@@ -636,6 +651,7 @@ window.openModal = (id=null) => {
   document.getElementById('f-pri').value=t?t.pri:'Media';
   document.getElementById('f-area').value=t?t.area||'':'';
   document.getElementById('f-resp').value=t?t.resp||'':'';
+  document.getElementById('f-freq').value=t?t.freq||'':'';
   document.getElementById('f-start').value=t?t.startDate||'':'';
   document.getElementById('f-date').value=t?t.date||'':'';
   const prog=t?t.progress||0:0;
@@ -652,7 +668,7 @@ window.closeAreaModal=()=>document.getElementById('area-modal-bg').classList.rem
 // ── EXPORT ─────────────────────────────────────────────────────────────────
 window.exportExcel=()=>{
   if(typeof XLSX==='undefined'){showToast('❌ Librería no disponible');return;}
-  const data=tasks.map(t=>({'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No'}));
+  const data=tasks.map(t=>({'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Frecuencia':t.freq||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No'}));
   const ws=XLSX.utils.json_to_sheet(data);
   ws['!cols']=[{wch:40},{wch:50},{wch:12},{wch:18},{wch:22},{wch:14},{wch:14},{wch:10},{wch:13},{wch:10}];
   const wb=XLSX.utils.book_new();
