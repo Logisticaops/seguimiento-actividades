@@ -188,6 +188,9 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 
   <!-- DASHBOARD -->
   <div class="view-content active" id="tab-dashboard">
+    <div class="tb" style="padding-top:10px;">
+      <select id="dash-filter-resp" style="min-width:180px;"><option value="">Todos los responsables</option></select>
+    </div>
     <div class="kpi-row" id="kpi-row"></div>
     <div class="charts-row" id="charts-row"></div>
     <div class="gantt-wrap">
@@ -204,6 +207,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
       <input type="text" id="search" placeholder="🔍 Buscar tarea...">
       <select id="filter-pri"><option value="">Todas las prioridades</option><option>Alta</option><option>Media</option><option>Baja</option></select>
       <select id="filter-area"><option value="">Todas las áreas</option></select>
+      <select id="filter-resp"><option value="">Todos los responsables</option></select>
       <select id="filter-est"><option value="">Todos los estados</option><option value="pending">Pendientes</option><option value="done">Completadas</option></select>
       <button class="btn btn-p" onclick="openModal()">➕ Nueva tarea</button>
       <button class="btn" onclick="openAreaModal()">🏷️ Áreas</button>
@@ -405,16 +409,33 @@ function today(){return new Date().toISOString().slice(0,10);}
 function isVencida(d){return d && d<today();}
 
 function render(){
+  renderRespSelects();
   renderKPIs();
   renderCharts();
   renderGantt();
   renderList();
 }
 
+function renderRespSelects(){
+  const resps=[...new Set(tasks.map(t=>t.resp).filter(Boolean))].sort();
+  ['dash-filter-resp','filter-resp'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const prev=el.value;
+    el.innerHTML='<option value="">Todos los responsables</option>'+resps.map(r=>`<option value="${r}"${prev===r?' selected':''}>${r}</option>`).join('');
+  });
+}
+
+function getDashTasks(){
+  const fr=document.getElementById('dash-filter-resp').value;
+  return fr?tasks.filter(t=>t.resp===fr):tasks;
+}
+
 function renderKPIs(){
-  const total=tasks.length, done=tasks.filter(t=>t.done).length;
-  const pend=total-done, venc=tasks.filter(t=>!t.done&&isVencida(t.date)).length;
-  const avgProg=total>0?Math.round(tasks.reduce((s,t)=>s+(t.progress||0),0)/total):0;
+  const src=getDashTasks();
+  const total=src.length, done=src.filter(t=>t.done).length;
+  const pend=total-done, venc=src.filter(t=>!t.done&&isVencida(t.date)).length;
+  const avgProg=total>0?Math.round(src.reduce((s,t)=>s+(t.progress||0),0)/total):0;
   document.getElementById('kpi-row').innerHTML=`
     <div class="kpi"><div class="kpi-val">${total}</div><div class="kpi-lbl">Total tareas</div></div>
     <div class="kpi"><div class="kpi-val" style="color:var(--grn)">${done}</div><div class="kpi-lbl">Completadas</div></div>
@@ -424,22 +445,23 @@ function renderKPIs(){
 }
 
 function renderCharts(){
+  const src=getDashTasks();
   // Chart 1: Estado
-  const done=tasks.filter(t=>t.done).length;
-  const pend=tasks.filter(t=>!t.done&&!isVencida(t.date)).length;
-  const venc=tasks.filter(t=>!t.done&&isVencida(t.date)).length;
-  const total=tasks.length||1;
+  const done=src.filter(t=>t.done).length;
+  const pend=src.filter(t=>!t.done&&!isVencida(t.date)).length;
+  const venc=src.filter(t=>!t.done&&isVencida(t.date)).length;
+  const total=src.length||1;
   const statusData=[{l:'Completadas',v:done,c:'var(--grn)'},{l:'Pendientes',v:pend,c:'var(--acc)'},{l:'Vencidas',v:venc,c:'var(--red)'}];
   const donut1=buildDonut(statusData,total);
 
   // Chart 2: Prioridad
   const pris=[{l:'Alta',c:'var(--red)'},{l:'Media',c:'var(--ylw)'},{l:'Baja',c:'var(--grn)'}];
-  const priData=pris.map(p=>({l:p.l,v:tasks.filter(t=>t.pri===p.l).length,c:p.c}));
-  const donut2=buildDonut(priData,tasks.length||1);
+  const priData=pris.map(p=>({l:p.l,v:src.filter(t=>t.pri===p.l).length,c:p.c}));
+  const donut2=buildDonut(priData,src.length||1);
 
   // Chart 3: Pendientes por área
   const areaMap={};
-  tasks.filter(t=>!t.done&&t.area).forEach(t=>{areaMap[t.area]=(areaMap[t.area]||0)+1;});
+  src.filter(t=>!t.done&&t.area).forEach(t=>{areaMap[t.area]=(areaMap[t.area]||0)+1;});
   const areaEntries=Object.entries(areaMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const maxA=Math.max(...areaEntries.map(e=>e[1]),1);
   const areaBars=areaEntries.length?areaEntries.map(([a,n])=>`
@@ -478,7 +500,7 @@ function buildDonut(data, total){
 }
 
 function renderGantt(){
-  const tWithDates=tasks.filter(t=>t.startDate&&t.date).slice(0,15);
+  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date).slice(0,15);
   if(!tWithDates.length){
     document.getElementById('gantt-container').innerHTML='<div style="color:var(--muted);font-size:.75rem;padding:8px 0">No hay tareas con fecha inicio y fecha límite definidas.</div>';
     return;
@@ -551,11 +573,13 @@ function renderList(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   const fp=document.getElementById('filter-pri').value;
   const fa=document.getElementById('filter-area').value;
+  const fr=document.getElementById('filter-resp').value;
   const fe=document.getElementById('filter-est').value;
   let list=[...tasks].filter(t=>{
     if(q&&!t.title.toLowerCase().includes(q)&&!(t.note||'').toLowerCase().includes(q)) return false;
     if(fp&&t.pri!==fp) return false;
     if(fa&&t.area!==fa) return false;
+    if(fr&&t.resp!==fr) return false;
     if(fe==='pending'&&t.done) return false;
     if(fe==='done'&&!t.done) return false;
     return true;
@@ -648,7 +672,9 @@ window.showToast=msg=>{
 document.getElementById('search').addEventListener('input',renderList);
 document.getElementById('filter-pri').addEventListener('change',renderList);
 document.getElementById('filter-area').addEventListener('change',renderList);
+document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
+document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
