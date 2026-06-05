@@ -101,6 +101,16 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 .ic-btn:hover{background:#eef1f5;color:var(--acc);}
 .ic-btn.del:hover{background:var(--red-bg);color:var(--red);}
 .empty{text-align:center;padding:36px 20px;color:var(--muted);font-size:.82rem;}
+.history-wrap{margin-top:6px;border-top:1px solid #eef1f5;padding-top:5px;}
+.history-toggle{font-size:.68rem;color:var(--acc);cursor:pointer;background:none;border:none;padding:0;font-family:'IBM Plex Sans',sans-serif;display:inline-flex;align-items:center;gap:3px;}
+.history-toggle:hover{text-decoration:underline;}
+.history-list{margin-top:5px;flex-direction:column;gap:3px;display:none;}
+.history-list.open{display:flex;}
+.history-item{font-size:.67rem;color:var(--muted);display:flex;gap:6px;align-items:baseline;padding:3px 7px;background:#f8fafc;border-radius:4px;line-height:1.5;}
+.history-item .h-who{font-weight:600;color:var(--txt);white-space:nowrap;}
+.history-item .h-time{white-space:nowrap;color:#b0bcc8;font-size:.63rem;}
+.history-item .h-changes{flex:1;}
+.last-update{font-size:.67rem;color:#b0bcc8;margin-top:3px;display:flex;align-items:center;gap:4px;}
 
 /* MODAL */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;align-items:center;justify-content:center;}
@@ -189,7 +199,18 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
   <!-- DASHBOARD -->
   <div class="view-content active" id="tab-dashboard">
     <div class="tb" style="padding-top:10px;">
-      <select id="dash-filter-resp" style="min-width:180px;"><option value="">Todos los responsables</option></select>
+      <select id="dash-filter-resp" style="min-width:160px;"><option value="">Todos los responsables</option></select>
+      <select id="dash-filter-area" style="min-width:140px;"><option value="">Todas las áreas</option></select>
+      <select id="dash-filter-pri" style="min-width:160px;">
+        <option value="">Todas las prioridades</option>
+        <option>Alta</option><option>Media</option><option>Baja</option>
+      </select>
+      <select id="dash-filter-est" style="min-width:140px;">
+        <option value="">Todos los estados</option>
+        <option value="pending">Pendientes</option>
+        <option value="done">Completadas</option>
+        <option value="vencida">Vencidas</option>
+      </select>
     </div>
     <div class="kpi-row" id="kpi-row"></div>
     <div class="charts-row" id="charts-row"></div>
@@ -274,6 +295,21 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
   </div>
 </div>
 
+<!-- ALERT MODAL -->
+<div class="modal-bg" id="alert-modal-bg">
+  <div class="modal" style="max-width:480px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <span style="font-size:1.4rem">🔔</span>
+      <h3 style="margin:0">Tus pendientes de hoy</h3>
+    </div>
+    <div id="alert-vencidas" style="margin-bottom:10px;"></div>
+    <div id="alert-proximas"></div>
+    <div class="modal-footer">
+      <button class="btn btn-p" onclick="document.getElementById('alert-modal-bg').classList.remove('open')">Entendido</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -298,7 +334,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-let tasks = [], areas = [], editId = null, unsubTasks = null, unsubAreas = null;
+let tasks = [], areas = [], editId = null, unsubTasks = null, unsubAreas = null, currentUser = null;
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
 window.loginGoogle = async () => {
@@ -311,15 +347,18 @@ window.logout = async () => {
   await signOut(auth);
 };
 
+
 onAuthStateChanged(auth, user => {
   document.getElementById('view-loading').style.display = 'none';
   if(user) {
+    currentUser = user;
     document.getElementById('view-login').style.display = 'none';
     document.getElementById('view-app').style.display = 'block';
     document.getElementById('user-name').textContent = user.displayName || user.email;
     listenAreas();
     listenTasks();
   } else {
+    currentUser = null;
     document.getElementById('view-app').style.display = 'none';
     document.getElementById('view-login').style.display = 'block';
     if(unsubTasks){unsubTasks();unsubTasks=null;}
@@ -329,11 +368,13 @@ onAuthStateChanged(auth, user => {
 });
 
 // ── FIRESTORE ──────────────────────────────────────────────────────────────
+let alertShown = false;
 function listenTasks() {
   const q = query(collection(db,'tasks'), orderBy('createdAt','desc'));
   unsubTasks = onSnapshot(q, snap => {
     tasks = snap.docs.map(d=>({id:d.id,...d.data()}));
     render();
+    if(!alertShown){ alertShown=true; setTimeout(checkAlerts, 800); }
   });
 }
 
@@ -382,10 +423,29 @@ window.saveTask = async () => {
     if(editId) {
       const prev = tasks.find(t=>t.id===editId);
       if(prev) data.done = prev.done;
-      await updateDoc(doc(db,'tasks',editId), data);
+
+      // Build change log
+      const fields = {title:'Título',note:'Notas',pri:'Prioridad',area:'Área',resp:'Responsable',freq:'Frecuencia',startDate:'Inicio',date:'Límite',progress:'Avance'};
+      const changes = [];
+      Object.entries(fields).forEach(([k,label])=>{
+        const oldVal = prev[k]??'';
+        const newVal = data[k]??'';
+        if(String(oldVal)!==String(newVal)) changes.push(`${label}: "${oldVal||'—'}" → "${newVal||'—'}"`);
+      });
+
+      const histEntry = {
+        who: currentUser.displayName || currentUser.email,
+        at: Date.now(),
+        changes: changes.length ? changes.join(' · ') : 'Sin cambios registrados'
+      };
+      const history = [...(prev.history||[]), histEntry];
+      await updateDoc(doc(db,'tasks',editId), {...data, history, updatedAt: Date.now(), updatedBy: currentUser.displayName||currentUser.email});
       showToast('💾 Tarea actualizada');
     } else {
       data.createdAt = Date.now();
+      data.history = [{who: currentUser.displayName||currentUser.email, at: Date.now(), changes: 'Tarea creada'}];
+      data.updatedAt = Date.now();
+      data.updatedBy = currentUser.displayName||currentUser.email;
       await addDoc(collection(db,'tasks'), data);
       showToast('✅ Tarea agregada');
     }
@@ -395,7 +455,10 @@ window.saveTask = async () => {
 
 window.toggleTask = async (id, current) => {
   try {
-    const upd = {done:!current};
+    const t = tasks.find(x=>x.id===id);
+    const histEntry = {who: currentUser.displayName||currentUser.email, at: Date.now(), changes: !current ? 'Estado: Pendiente → Completada' : 'Estado: Completada → Pendiente'};
+    const history = [...((t&&t.history)||[]), histEntry];
+    const upd = {done:!current, history, updatedAt:Date.now(), updatedBy:currentUser.displayName||currentUser.email};
     if(!current) upd.progress = 100;
     await updateDoc(doc(db,'tasks',id), upd);
     showToast(!current?'✅ Completada':'↩️ Reabierta');
@@ -417,6 +480,60 @@ window.switchTab = (tab) => {
     v.classList.toggle('active', v.id==='tab-'+tab);
   });
 };
+
+// ── ALERTAS ────────────────────────────────────────────────────────────────
+function checkAlerts() {
+  if(!currentUser) return;
+  const userEmail = currentUser.email;
+  const userName = currentUser.displayName || '';
+
+  // Buscar tareas del usuario por email o nombre
+  const misTareas = tasks.filter(t => !t.done && t.resp && (
+    t.resp.toLowerCase() === userEmail.toLowerCase() ||
+    t.resp.toLowerCase() === userName.toLowerCase() ||
+    userName.toLowerCase().includes(t.resp.toLowerCase()) ||
+    t.resp.toLowerCase().includes(userName.toLowerCase().split(' ')[0])
+  ));
+
+  if(!misTareas.length) return;
+
+  const todayStr = today();
+  const tom = new Date(); tom.setDate(tom.getDate()+1);
+  const tomorrowStr = tom.toISOString().slice(0,10);
+  const in2 = new Date(); in2.setDate(in2.getDate()+2);
+  const in2Str = in2.toISOString().slice(0,10);
+
+  const vencidas = misTareas.filter(t => t.date && t.date < todayStr);
+  const hoy = misTareas.filter(t => t.date === todayStr);
+  const proximas = misTareas.filter(t => t.date === tomorrowStr || t.date === in2Str);
+
+  if(!vencidas.length && !hoy.length && !proximas.length) return;
+
+  const makeList = (items, color, icon) => items.map(t =>
+    `<div style="display:flex;align-items:center;gap:7px;padding:5px 8px;background:${color};border-radius:6px;margin-bottom:4px;font-size:.78rem;">
+      <span>${icon}</span>
+      <div>
+        <div style="font-weight:500">${t.title}</div>
+        <div style="font-size:.68rem;opacity:.7">${t.date ? '📅 '+t.date.slice(5).replace('-','/') : ''} ${t.area ? '· '+t.area : ''}</div>
+      </div>
+    </div>`
+  ).join('');
+
+  let vencHtml = '', proxHtml = '';
+  if(vencidas.length || hoy.length){
+    vencHtml = `<div style="font-size:.72rem;font-weight:600;color:var(--red);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">⚠️ Vencidas / Vencen hoy (${vencidas.length+hoy.length})</div>`;
+    vencHtml += makeList(vencidas,'#fdecea','🔴');
+    vencHtml += makeList(hoy,'#fff3cd','🟡');
+  }
+  if(proximas.length){
+    proxHtml = `<div style="font-size:.72rem;font-weight:600;color:var(--ylw);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;margin-top:${vencidas.length||hoy.length?'10px':'0'};">📅 Próximas (${proximas.length})</div>`;
+    proxHtml += makeList(proximas,'#e8f1fb','🔵');
+  }
+
+  document.getElementById('alert-vencidas').innerHTML = vencHtml;
+  document.getElementById('alert-proximas').innerHTML = proxHtml;
+  document.getElementById('alert-modal-bg').classList.add('open');
+}
 
 // ── RENDER ─────────────────────────────────────────────────────────────────
 function today(){return new Date().toISOString().slice(0,10);}
@@ -442,7 +559,18 @@ function renderRespSelects(){
 
 function getDashTasks(){
   const fr=document.getElementById('dash-filter-resp').value;
-  return fr?tasks.filter(t=>t.resp===fr):tasks;
+  const fa=document.getElementById('dash-filter-area').value;
+  const fp=document.getElementById('dash-filter-pri').value;
+  const fe=document.getElementById('dash-filter-est').value;
+  return tasks.filter(t=>{
+    if(fr&&t.resp!==fr) return false;
+    if(fa&&t.area!==fa) return false;
+    if(fp&&t.pri!==fp) return false;
+    if(fe==='pending'&&t.done) return false;
+    if(fe==='done'&&!t.done) return false;
+    if(fe==='vencida'&&(!isVencida(t.date)||t.done)) return false;
+    return true;
+  });
 }
 
 function renderKPIs(){
@@ -566,12 +694,12 @@ function renderGantt(){
 }
 
 function renderAreaSelects(){
-  const selects=['filter-area','f-area'];
+  const selects=['filter-area','f-area','dash-filter-area'];
   selects.forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
     const prev=el.value;
-    const base=id==='filter-area'?'<option value="">Todas las áreas</option>':'<option value="">Sin área</option>';
+    const base=id==='f-area'?'<option value="">Sin área</option>':'<option value="">Todas las áreas</option>';
     el.innerHTML=base+areas.map(a=>`<option value="${a}"${prev===a?' selected':''}>${a}</option>`).join('');
   });
 }
@@ -619,6 +747,21 @@ function renderList(){
     const freqLbl=t.freq?`<span class="badge" style="background:#f0f3f7;color:var(--muted)">🔁 ${t.freq}</span>`:'';
     const titleEsc=(t.title||'').replace(/</g,'&lt;');
     const noteEsc=(t.note||'').replace(/</g,'&lt;');
+    const history = t.history||[];
+    const lastH = history.length ? history[history.length-1] : null;
+    const fmtTime = ts => { const d=new Date(ts); return d.toLocaleDateString('es-MX',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}); };
+    const lastUpdateHtml = lastH ? `<div class="last-update">🕐 ${lastH.who} · ${fmtTime(lastH.at)}</div>` : '';
+    const historyItems = [...history].reverse().map((h,i)=>`
+      <div class="history-item">
+        <span class="h-who">${h.who}</span>
+        <span class="h-time">${fmtTime(h.at)}</span>
+        <span class="h-changes">${h.changes}</span>
+      </div>`).join('');
+    const historyHtml = history.length ? `
+      <div class="history-wrap">
+        <button class="history-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▲ Ocultar historial':'▼ Ver historial (${history.length})'">▼ Ver historial (${history.length})</button>
+        <div class="history-list">${historyItems}</div>
+      </div>` : '';
     return `<div class="task-card${t.done?' done':''}">
       <input type="checkbox" class="task-check" ${t.done?'checked':''} onchange="toggleTask('${t.id}',${t.done})">
       <div class="task-body">
@@ -632,6 +775,8 @@ function renderList(){
           <div class="prog-bg"><div class="prog-fg" style="width:${prog}%"></div></div>
           <span class="prog-lbl">${prog}%</span>
         </div>
+        ${lastUpdateHtml}
+        ${historyHtml}
       </div>
       <div class="task-actions">
         <button class="ic-btn" onclick="openModal('${t.id}')" title="Editar">✏️</button>
@@ -691,6 +836,9 @@ document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
 document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
+document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
+document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
+document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
