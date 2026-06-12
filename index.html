@@ -156,6 +156,27 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 
 .view-content{display:none;}
 .view-content.active{display:block;}
+
+/* RECURRENTES */
+.rec-wrap{padding:14px 24px 24px;}
+.rec-section-title{font-size:.8rem;font-weight:600;color:var(--pri);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.rec-group{display:flex;flex-direction:column;gap:8px;}
+.rec-card{background:#fff;border:1px solid var(--bdr);border-radius:9px;padding:10px 14px;}
+.rec-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;}
+.rec-title{font-size:.83rem;font-weight:500;}
+.rec-sub{font-size:.7rem;color:var(--muted);margin-top:2px;}
+.rec-pct{font-size:1.05rem;font-weight:700;font-family:'IBM Plex Mono',monospace;text-align:right;line-height:1.1;}
+.rec-pct-lbl{font-size:.6rem;font-weight:500;color:var(--muted);text-transform:uppercase;}
+.rec-grid{display:flex;gap:6px;}
+.rec-cell{flex:1;text-align:center;cursor:pointer;user-select:none;border-radius:6px;padding:5px 2px;transition:transform .1s;}
+.rec-cell:hover{transform:scale(1.05);}
+.rec-day{font-size:.62rem;color:var(--muted);margin-bottom:3px;}
+.rec-mark{border-radius:5px;padding:5px 0;font-size:.75rem;font-weight:600;}
+.rec-cell.done .rec-mark{background:var(--grn);color:#fff;}
+.rec-cell.miss .rec-mark{background:var(--red);color:#fff;}
+.rec-cell.today .rec-mark{background:var(--ylw);color:#fff;}
+.rec-cell.future .rec-mark{background:#eef1f5;color:#bbc4cf;cursor:default;}
+.rec-cell.future{cursor:default;}
 </style>
 </head>
 <body>
@@ -194,6 +215,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
   <div class="tabs">
     <div class="tab active" onclick="switchTab('dashboard')">📊 Dashboard</div>
     <div class="tab" onclick="switchTab('tareas')">📋 Tareas</div>
+    <div class="tab" onclick="switchTab('recurrentes')">🔁 Recurrentes</div>
   </div>
 
   <!-- DASHBOARD -->
@@ -235,6 +257,11 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
       <button class="btn btn-g" onclick="exportExcel()">⬇️ Excel</button>
     </div>
     <div class="task-wrap" id="task-list"></div>
+  </div>
+
+  <!-- RECURRENTES -->
+  <div class="view-content" id="tab-recurrentes">
+    <div class="rec-wrap" id="recurrentes-list"></div>
   </div>
 </div>
 
@@ -471,10 +498,109 @@ window.deleteTask = async (id, title) => {
   catch(e){showToast('❌ Error');}
 };
 
+// ── RECURRENTES ────────────────────────────────────────────────────────────
+function getMonday(d){
+  const dt=new Date(d);
+  const day=dt.getDay();
+  const diff=(day===0?-6:1)-day;
+  dt.setDate(dt.getDate()+diff);
+  return dt.toISOString().slice(0,10);
+}
+
+window.toggleCompletion = async (id, dateKey) => {
+  const t=tasks.find(x=>x.id===id);
+  if(!t) return;
+  const completions=t.completions||[];
+  const has=completions.includes(dateKey);
+  const newCompletions = has ? completions.filter(d=>d!==dateKey) : [...completions, dateKey];
+  try{
+    await updateDoc(doc(db,'tasks',id),{completions:newCompletions, updatedAt:Date.now(), updatedBy: currentUser.displayName||currentUser.email});
+  }catch(e){showToast('❌ Error');}
+};
+
+function renderRecurrentes(){
+  const el=document.getElementById('recurrentes-list');
+  if(!el) return;
+  const diarias=tasks.filter(t=>t.freq==='Diaria');
+  const semanales=tasks.filter(t=>t.freq==='Semanal');
+  const todayStr=today();
+  const todayD=new Date(todayStr);
+  const dayNames=['L','M','M','J','V','S','D'];
+
+  const buildDaily=(t)=>{
+    const monday=getMonday(todayD);
+    const cells=[];
+    const monthStart=todayStr.slice(0,7)+'-01';
+    let completedThisMonth=0;
+    (t.completions||[]).forEach(c=>{ if(c>=monthStart && c<=todayStr) completedThisMonth++; });
+    const elapsed=todayD.getDate();
+    const pct=elapsed>0?Math.round(completedThisMonth/elapsed*100):0;
+    for(let i=0;i<7;i++){
+      const d=new Date(monday); d.setDate(d.getDate()+i);
+      const ds=d.toISOString().slice(0,10);
+      const done=(t.completions||[]).includes(ds);
+      let cls;
+      if(ds<todayStr) cls=done?'done':'miss';
+      else if(ds===todayStr) cls=done?'done':'today';
+      else cls='future';
+      const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
+      const clickable=ds<=todayStr?` onclick="toggleCompletion('${t.id}','${ds}')"`:'';
+      cells.push(`<div class="rec-cell ${cls}"${clickable}><div class="rec-day">${dayNames[i]}</div><div class="rec-mark">${mark}</div></div>`);
+    }
+    return {cells:cells.join(''), pct};
+  };
+
+  const buildWeekly=(t)=>{
+    const curMonday=getMonday(todayD);
+    let completedCount=0;
+    const cells=[];
+    for(let i=5;i>=0;i--){
+      const d=new Date(curMonday); d.setDate(d.getDate()-7*i);
+      const ws=d.toISOString().slice(0,10);
+      const done=(t.completions||[]).includes(ws);
+      if(done) completedCount++;
+      let cls;
+      if(ws<curMonday) cls=done?'done':'miss';
+      else if(ws===curMonday) cls=done?'done':'today';
+      else cls='future';
+      const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
+      cells.push(`<div class="rec-cell ${cls}" onclick="toggleCompletion('${t.id}','${ws}')"><div class="rec-day">${ws.slice(5).replace('-','/')}</div><div class="rec-mark">${mark}</div></div>`);
+    }
+    const pct=Math.round(completedCount/6*100);
+    return {cells:cells.join(''), pct};
+  };
+
+  const renderGroup=(list, builder)=>{
+    if(!list.length) return '<div class="empty">📭 No hay tareas en esta categoría.</div>';
+    return list.map(t=>{
+      const {cells,pct}=builder(t);
+      const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
+      const titleEsc=(t.title||'').replace(/</g,'&lt;');
+      return `<div class="rec-card">
+        <div class="rec-card-hdr">
+          <div>
+            <div class="rec-title">${titleEsc}</div>
+            <div class="rec-sub">${t.resp?'👤 '+t.resp:''}${t.area?' · '+t.area:''}</div>
+          </div>
+          <div class="rec-pct" style="color:${pctColor}">${pct}%<div class="rec-pct-lbl">cumplim.</div></div>
+        </div>
+        <div class="rec-grid">${cells}</div>
+      </div>`;
+    }).join('');
+  };
+
+  el.innerHTML=`
+    <div class="rec-section-title">📆 Diarias</div>
+    <div class="rec-group">${renderGroup(diarias, buildDaily)}</div>
+    <div class="rec-section-title" style="margin-top:16px;">🗓️ Semanales</div>
+    <div class="rec-group">${renderGroup(semanales, buildWeekly)}</div>
+  `;
+}
+
 // ── TABS ───────────────────────────────────────────────────────────────────
 window.switchTab = (tab) => {
   document.querySelectorAll('.tab').forEach((t,i)=>{
-    t.classList.toggle('active', ['dashboard','tareas'][i]===tab);
+    t.classList.toggle('active', ['dashboard','tareas','recurrentes'][i]===tab);
   });
   document.querySelectorAll('.view-content').forEach(v=>{
     v.classList.toggle('active', v.id==='tab-'+tab);
@@ -545,6 +671,7 @@ function render(){
   renderCharts();
   renderGantt();
   renderList();
+  renderRecurrentes();
 }
 
 function renderRespSelects(){
@@ -642,7 +769,7 @@ function buildDonut(data, total){
 }
 
 function renderGantt(){
-  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date).slice(0,15);
+  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date&&t.freq!=='Diaria'&&t.freq!=='Semanal').slice(0,15);
   if(!tWithDates.length){
     document.getElementById('gantt-container').innerHTML='<div style="color:var(--muted);font-size:.75rem;padding:8px 0">No hay tareas con fecha inicio y fecha límite definidas.</div>';
     return;
