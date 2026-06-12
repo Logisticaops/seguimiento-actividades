@@ -531,16 +531,20 @@ function renderRecurrentes(){
     const monday=getMonday(todayD);
     const cells=[];
     const monthStart=todayStr.slice(0,7)+'-01';
+    const createdStr0 = t.createdAt ? new Date(t.createdAt).toISOString().slice(0,10) : todayStr;
+    const countStart = createdStr0>monthStart?createdStr0:monthStart;
     let completedThisMonth=0;
-    (t.completions||[]).forEach(c=>{ if(c>=monthStart && c<=todayStr) completedThisMonth++; });
-    const elapsed=todayD.getDate();
-    const pct=elapsed>0?Math.round(completedThisMonth/elapsed*100):0;
+    (t.completions||[]).forEach(c=>{ if(c>=countStart && c<=todayStr) completedThisMonth++; });
+    const elapsed=Math.max(1, Math.round((todayD-new Date(countStart))/86400000)+1);
+    const pct=Math.round(completedThisMonth/elapsed*100);
+    const createdStr = t.createdAt ? new Date(t.createdAt).toISOString().slice(0,10) : todayStr;
     for(let i=0;i<7;i++){
       const d=new Date(monday); d.setDate(d.getDate()+i);
       const ds=d.toISOString().slice(0,10);
       const done=(t.completions||[]).includes(ds);
       let cls;
-      if(ds<todayStr) cls=done?'done':'miss';
+      if(ds<createdStr) cls='future';
+      else if(ds<todayStr) cls=done?'done':'miss';
       else if(ds===todayStr) cls=done?'done':'today';
       else cls='future';
       const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
@@ -552,21 +556,23 @@ function renderRecurrentes(){
 
   const buildWeekly=(t)=>{
     const curMonday=getMonday(todayD);
-    let completedCount=0;
+    const createdMonday = t.createdAt ? getMonday(new Date(t.createdAt)) : curMonday;
+    let completedCount=0, totalCount=0;
     const cells=[];
     for(let i=5;i>=0;i--){
       const d=new Date(curMonday); d.setDate(d.getDate()-7*i);
       const ws=d.toISOString().slice(0,10);
       const done=(t.completions||[]).includes(ws);
-      if(done) completedCount++;
       let cls;
-      if(ws<curMonday) cls=done?'done':'miss';
-      else if(ws===curMonday) cls=done?'done':'today';
+      if(ws<createdMonday) cls='future';
+      else if(ws<curMonday){ cls=done?'done':'miss'; totalCount++; if(done) completedCount++; }
+      else if(ws===curMonday){ cls=done?'done':'today'; totalCount++; if(done) completedCount++; }
       else cls='future';
       const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
-      cells.push(`<div class="rec-cell ${cls}" onclick="toggleCompletion('${t.id}','${ws}')"><div class="rec-day">${ws.slice(5).replace('-','/')}</div><div class="rec-mark">${mark}</div></div>`);
+      const clickable=cls!=='future'?` onclick="toggleCompletion('${t.id}','${ws}')"`:'';
+      cells.push(`<div class="rec-cell ${cls}"${clickable}><div class="rec-day">${ws.slice(5).replace('-','/')}</div><div class="rec-mark">${mark}</div></div>`);
     }
-    const pct=Math.round(completedCount/6*100);
+    const pct=totalCount>0?Math.round(completedCount/totalCount*100):0;
     return {cells:cells.join(''), pct};
   };
 
