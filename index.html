@@ -74,9 +74,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 .btn-g:hover{background:#147a37;color:#fff;}
 
 /* TASK LIST */
-.task-wrap{padding:8px 24px 24px;display:flex;flex-direction:column;gap:5px;}
-.task-card{background:#fff;border:1px solid var(--bdr);border-radius:9px;padding:9px 12px;display:flex;gap:9px;align-items:flex-start;transition:opacity .2s,border-color .15s;}
-.task-card:hover{border-color:#b0bfd0;}
+.task-wrap{padding:8px 24px 24px;display:flex;flex-direction:column;gap:9px;}
+.task-card{background:#fff;border:1px solid var(--bdr);border-left:3px solid var(--bdr);border-radius:10px;padding:11px 14px;display:flex;gap:9px;align-items:flex-start;transition:opacity .2s,border-color .15s,box-shadow .15s;box-shadow:0 1px 3px rgba(30,45,61,.06);}
+.task-card:hover{border-color:#b0bfd0;box-shadow:0 3px 10px rgba(30,45,61,.11);}
+.task-card.pa-Alta{border-left-color:var(--red);}
+.task-card.pa-Media{border-left-color:var(--ylw);}
+.task-card.pa-Baja{border-left-color:var(--grn);}
 .task-card.done{opacity:.4;}
 .task-card.done .task-title{text-decoration:line-through;color:var(--muted);}
 .task-check{width:16px;height:16px;cursor:pointer;flex-shrink:0;margin-top:3px;accent-color:var(--acc);}
@@ -274,7 +277,18 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 
   <!-- RECURRENTES -->
   <div class="view-content" id="tab-recurrentes">
-    <div class="tb" style="padding-top:14px;"><input type="text" id="rec-search" placeholder="🔍 Buscar por actividad, responsable o área..."></div>
+    <div class="tb" style="padding-top:14px;">
+      <input type="text" id="rec-search" placeholder="🔍 Buscar por actividad, responsable o área...">
+      <select id="rec-filter-pri"><option value="">Todas las prioridades</option><option>Alta</option><option>Media</option><option>Baja</option></select>
+      <select id="rec-filter-area"><option value="">Todas las áreas</option></select>
+      <select id="rec-filter-resp"><option value="">Todos los responsables</option></select>
+      <select id="rec-filter-cumpl">
+        <option value="">Todo cumplimiento</option>
+        <option value="low">Bajo (&lt;50%)</option>
+        <option value="mid">Medio (50–79%)</option>
+        <option value="high">Alto (≥80%)</option>
+      </select>
+    </div>
     <div class="rec-wrap" id="recurrentes-list" style="padding-top:8px;"></div>
   </div>
 </div>
@@ -589,10 +603,18 @@ function renderRecurrentes(){
   const el=document.getElementById('recurrentes-list');
   if(!el) return;
   const q=(document.getElementById('rec-search')?.value||'').toLowerCase().trim();
-  const match=t=>!q||[t.title,t.resp,t.area].some(v=>(v||'').toLowerCase().includes(q));
-  const prep=arr=>arr.filter(match).sort((a,b)=>(a.resp||'~').localeCompare(b.resp||'~')||(a.title||'').localeCompare(b.title||''));
-  const diarias=prep(tasks.filter(t=>t.freq==='Diaria'));
-  const semanales=prep(tasks.filter(t=>t.freq==='Semanal'));
+  const fp=document.getElementById('rec-filter-pri')?.value||'';
+  const fa=document.getElementById('rec-filter-area')?.value||'';
+  const fr=document.getElementById('rec-filter-resp')?.value||'';
+  const fc=document.getElementById('rec-filter-cumpl')?.value||'';
+  const inBand=pct=> !fc || (fc==='low'?pct<50 : fc==='mid'?(pct>=50&&pct<80) : pct>=80);
+  const match=t=>{
+    if(q && ![t.title,t.resp,t.area].some(v=>(v||'').toLowerCase().includes(q))) return false;
+    if(fp && t.pri!==fp) return false;
+    if(fa && t.area!==fa) return false;
+    if(fr && t.resp!==fr) return false;
+    return true;
+  };
   const todayStr=today();
   const todayD=new Date(todayStr);
   const dayNames=['L','M','M','J','V','S','D'];
@@ -644,10 +666,15 @@ function renderRecurrentes(){
     return {cells:cells.join(''), pct};
   };
 
-  const renderGroup=(list, builder)=>{
-    if(!list.length) return '<div class="empty">📭 No hay tareas en esta categoría.</div>';
-    return list.map(t=>{
-      const {cells,pct}=builder(t);
+  // Filtra (texto/pri/área/resp), construye celdas+pct, filtra por banda de cumplimiento y ordena por responsable
+  const buildList=(arr, builder)=>arr.filter(match)
+    .map(t=>({t, built:builder(t)}))
+    .filter(x=>inBand(x.built.pct))
+    .sort((a,b)=>(a.t.resp||'~').localeCompare(b.t.resp||'~')||(a.t.title||'').localeCompare(b.t.title||''));
+
+  const renderGroup=(items)=>{
+    return items.map(({t,built})=>{
+      const {cells,pct}=built;
       const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
       const titleEsc=(t.title||'').replace(/</g,'&lt;');
       const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}`;
@@ -663,17 +690,17 @@ function renderRecurrentes(){
   };
 
   const groups=[
-    {title:'📆 Diarias',     list:diarias,                                    builder:buildDaily},
-    {title:'🗓️ Semanales',   list:semanales,                                  builder:buildWeekly},
-    {title:'📅 Quincenales', list:prep(tasks.filter(t=>t.freq==='Quincenal')), builder:t=>buildPeriodCells(t,periodsQuincenal())},
-    {title:'📆 Mensuales',   list:prep(tasks.filter(t=>t.freq==='Mensual')),   builder:t=>buildPeriodCells(t,periodsMonthly())},
-    {title:'🗓️ Anuales',     list:prep(tasks.filter(t=>t.freq==='Anual')),     builder:t=>buildPeriodCells(t,periodsYearly())},
+    {title:'📆 Diarias',     items:buildList(tasks.filter(t=>t.freq==='Diaria'),    buildDaily)},
+    {title:'🗓️ Semanales',   items:buildList(tasks.filter(t=>t.freq==='Semanal'),   buildWeekly)},
+    {title:'📅 Quincenales', items:buildList(tasks.filter(t=>t.freq==='Quincenal'), t=>buildPeriodCells(t,periodsQuincenal()))},
+    {title:'📆 Mensuales',   items:buildList(tasks.filter(t=>t.freq==='Mensual'),   t=>buildPeriodCells(t,periodsMonthly()))},
+    {title:'🗓️ Anuales',     items:buildList(tasks.filter(t=>t.freq==='Anual'),     t=>buildPeriodCells(t,periodsYearly()))},
   ];
-  const html=groups.filter(g=>g.list.length).map(g=>
-    `<div class="rec-section-title">${g.title}</div><div class="rec-group">${renderGroup(g.list, g.builder)}</div>`
+  const html=groups.filter(g=>g.items.length).map(g=>
+    `<div class="rec-section-title">${g.title}</div><div class="rec-group">${renderGroup(g.items)}</div>`
   ).join('');
-  el.innerHTML = html || (q
-    ? '<div class="empty">🔍 No hay recurrentes que coincidan con la búsqueda.</div>'
+  el.innerHTML = html || ((q||fp||fa||fr||fc)
+    ? '<div class="empty">🔍 No hay recurrentes que coincidan con los filtros.</div>'
     : '<div class="empty">📭 No hay tareas recurrentes. Asigna una frecuencia (Diaria, Semanal, Quincenal, Mensual o Anual) a una tarea para verla aquí.</div>');
 }
 
@@ -774,7 +801,7 @@ function render(){
 
 function renderRespSelects(){
   const resps=[...new Set(tasks.map(t=>t.resp).filter(Boolean))].sort();
-  ['dash-filter-resp','filter-resp'].forEach(id=>{
+  ['dash-filter-resp','filter-resp','rec-filter-resp'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
     const prev=el.value;
@@ -1043,7 +1070,7 @@ function renderGantt(){
 }
 
 function renderAreaSelects(){
-  const selects=['filter-area','f-area','dash-filter-area'];
+  const selects=['filter-area','f-area','dash-filter-area','rec-filter-area'];
   selects.forEach(id=>{
     const el=document.getElementById(id);
     if(!el) return;
@@ -1112,7 +1139,7 @@ function renderList(){
         <button class="history-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.textContent=this.nextElementSibling.classList.contains('open')?'▲ Ocultar historial':'▼ Ver historial (${history.length})'">▼ Ver historial (${history.length})</button>
         <div class="history-list">${historyItems}</div>
       </div>` : '';
-    return `<div class="task-card${t.done?' done':''}">
+    return `<div class="task-card${t.done?' done':''} pa-${t.pri}">
       <input type="checkbox" class="task-check" ${t.done?'checked':''} onchange="toggleTask('${t.id}',${t.done})">
       <div class="task-body">
         <div class="task-title">${titleEsc}</div>
@@ -1235,6 +1262,10 @@ window.showToast=msg=>{
 document.getElementById('search').addEventListener('input',renderList);
 document.getElementById('filter-pri').addEventListener('change',renderList);
 document.getElementById('rec-search').addEventListener('input',renderRecurrentes);
+document.getElementById('rec-filter-pri').addEventListener('change',renderRecurrentes);
+document.getElementById('rec-filter-area').addEventListener('change',renderRecurrentes);
+document.getElementById('rec-filter-resp').addEventListener('change',renderRecurrentes);
+document.getElementById('rec-filter-cumpl').addEventListener('change',renderRecurrentes);
 document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
