@@ -307,7 +307,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     <div class="field-row">
       <div class="field"><label>Responsable</label><input id="f-resp" placeholder="Nombre o correo..."></div>
       <div class="field"><label>Frecuencia</label>
-        <select id="f-freq">
+        <select id="f-freq" onchange="toggleDueDow()">
           <option value="">Sin frecuencia</option>
           <option>Única vez</option>
           <option>Diaria</option>
@@ -317,6 +317,19 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
           <option>Anual</option>
         </select>
       </div>
+    </div>
+    <div class="field" id="field-duedow" style="display:none;">
+      <label>Día de cumplimiento (semanal)</label>
+      <select id="f-duedow">
+        <option value="">Selecciona el día...</option>
+        <option value="1">Lunes</option>
+        <option value="2">Martes</option>
+        <option value="3">Miércoles</option>
+        <option value="4">Jueves</option>
+        <option value="5">Viernes</option>
+        <option value="6">Sábado</option>
+        <option value="7">Domingo</option>
+      </select>
     </div>
     <div class="field-row">
       <div class="field"><label>Fecha inicio</label><input type="date" id="f-start"></div>
@@ -470,6 +483,7 @@ window.saveTask = async () => {
     area: document.getElementById('f-area').value,
     resp: document.getElementById('f-resp').value.trim(),
     freq: document.getElementById('f-freq').value,
+    dueDow: (document.getElementById('f-freq').value==='Semanal' && document.getElementById('f-duedow').value) ? parseInt(document.getElementById('f-duedow').value) : null,
     startDate: document.getElementById('f-start').value,
     date: document.getElementById('f-date').value,
     progress: parseInt(document.getElementById('f-prog').value)||0,
@@ -536,6 +550,22 @@ function getMonday(d){
   dt.setDate(dt.getDate()+diff);
   return dt.toISOString().slice(0,10);
 }
+
+// Lunes (local, sin desfase UTC) de la semana que contiene a d
+function localMonday(d){
+  const dt=new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const day=dt.getDay(); // 0=Dom..6=Sáb (local)
+  const diff=(day===0?-6:1)-day;
+  dt.setDate(dt.getDate()+diff);
+  return dt; // Date a medianoche local del lunes
+}
+// Fecha del día objetivo (dow: 1=Lun..7=Dom) dentro de la semana de d
+function weekAnchorDate(d, dow){
+  const a=localMonday(d);
+  a.setDate(a.getDate()+((dow||1)-1));
+  return a;
+}
+const DOW_NAMES={1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
 
 // Una tarea es recurrente si tiene una frecuencia que se repite (diaria en adelante)
 const FREQ_RECURRENTES=['Diaria','Semanal','Quincenal','Mensual','Anual'];
@@ -647,21 +677,29 @@ function renderRecurrentes(){
   };
 
   const buildWeekly=(t)=>{
-    const curMonday=getMonday(todayD);
-    const createdMonday = t.createdAt ? getMonday(new Date(t.createdAt)) : curMonday;
+    const dow=t.dueDow||1;                       // día objetivo: 1=Lun..7=Dom
+    const tNow=new Date();
+    const tStr=toDateStr(tNow);                   // hoy (local)
+    const curAnchor=weekAnchorDate(tNow, dow);    // día objetivo de la semana actual
+    const curKey=toDateStr(curAnchor);
+    const createdKey=t.createdAt ? toDateStr(weekAnchorDate(new Date(t.createdAt), dow)) : curKey;
     let completedCount=0, totalCount=0;
     const cells=[];
     for(let i=5;i>=0;i--){
-      const d=new Date(curMonday); d.setDate(d.getDate()-7*i);
-      const ws=d.toISOString().slice(0,10);
-      const done=(t.completions||[]).includes(ws);
-      let cls;
-      if(ws<createdMonday) cls='future';
-      else if(ws<curMonday){ cls=done?'done':'miss'; totalCount++; if(done) completedCount++; }
-      else if(ws===curMonday){ cls=done?'done':'today'; totalCount++; if(done) completedCount++; }
-      else cls='future';
-      const clickable=cls!=='future'?` onclick="toggleCompletion('${t.id}','${ws}')"`:'';
-      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${ws.slice(5).replace('-','/')}</div><div class="rc-box">${done?'✓':''}</div></div>`);
+      const ref=new Date(curAnchor); ref.setDate(ref.getDate()-7*i);
+      const ak=toDateStr(ref);
+      const done=(t.completions||[]).includes(ak);
+      let cls, evaluable=false;
+      if(ak<createdKey){ cls='future'; }                 // antes de crearse
+      else if(ak<curKey){ cls=done?'done':'miss'; evaluable=true; }  // semana pasada
+      else {                                             // semana en curso
+        if(done){ cls='done'; evaluable=true; }
+        else if(tStr>ak){ cls='miss'; evaluable=true; }  // ya pasó el día objetivo
+        else { cls='today'; }                            // aún por cumplir
+      }
+      if(evaluable){ totalCount++; if(done) completedCount++; }
+      const clickable=(ak>=createdKey)?` onclick="toggleCompletion('${t.id}','${ak}')"`:'';
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${ak.slice(5).replace('-','/')}</div><div class="rc-box">${done?'✓':''}</div></div>`);
     }
     const pct=totalCount>0?Math.round(completedCount/totalCount*100):0;
     return {cells:cells.join(''), pct};
@@ -678,7 +716,7 @@ function renderRecurrentes(){
       const {cells,pct}=built;
       const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
       const titleEsc=(t.title||'').replace(/</g,'&lt;');
-      const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}`;
+      const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}${t.freq==='Semanal'&&t.dueDow?` · 📅 ${DOW_NAMES[t.dueDow]}`:''}`;
       const titleAttr=titleEsc.replace(/'/g,"\\'");
       return `<div class="rec-card">
         <div class="rec-info">
@@ -1180,6 +1218,8 @@ window.openModal = (id=null) => {
   document.getElementById('f-area').value=t?t.area||'':'';
   document.getElementById('f-resp').value=t?t.resp||'':'';
   document.getElementById('f-freq').value=t?t.freq||'':'';
+  document.getElementById('f-duedow').value=t&&t.dueDow?String(t.dueDow):'';
+  toggleDueDow();
   document.getElementById('f-start').value=t?t.startDate||'':'';
   document.getElementById('f-date').value=t?t.date||'':'';
   const prog=t?t.progress||0:0;
@@ -1187,6 +1227,10 @@ window.openModal = (id=null) => {
   document.getElementById('f-prog-val').textContent=prog+'%';
   document.getElementById('modal-bg').classList.add('open');
   setTimeout(()=>document.getElementById('f-title').focus(),50);
+};
+window.toggleDueDow=()=>{
+  const show=document.getElementById('f-freq').value==='Semanal';
+  document.getElementById('field-duedow').style.display=show?'flex':'none';
 };
 window.closeModal=()=>{document.getElementById('modal-bg').classList.remove('open');editId=null;};
 
