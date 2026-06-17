@@ -172,6 +172,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 .rec-grid{display:flex;gap:6px;}
 .rec-pct{font-size:.95rem;font-weight:700;font-family:'IBM Plex Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;line-height:1;min-width:52px;}
 .rec-pct-lbl{font-size:.54rem;font-weight:500;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.rec-actions{display:flex;gap:2px;flex-shrink:0;}
 .rc-cell{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;user-select:none;}
 .rc-cell.future{cursor:default;}
 .rc-d{font-size:.57rem;color:var(--muted);}
@@ -678,6 +679,7 @@ function renderRecurrentes(){
       const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
       const titleEsc=(t.title||'').replace(/</g,'&lt;');
       const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}`;
+      const titleAttr=titleEsc.replace(/'/g,"\\'");
       return `<div class="rec-card">
         <div class="rec-info">
           <div class="rec-title">${titleEsc}</div>
@@ -685,6 +687,10 @@ function renderRecurrentes(){
         </div>
         <div class="rec-grid">${cells}</div>
         <div class="rec-pct" style="color:${pctColor}">${pct}%<span class="rec-pct-lbl">cumplim.</span></div>
+        <div class="rec-actions">
+          <button class="ic-btn" onclick="openModal('${t.id}')" title="Editar">✏️</button>
+          <button class="ic-btn del" onclick="deleteTask('${t.id}','${titleAttr}')" title="Eliminar">🗑️</button>
+        </div>
       </div>`;
     }).join('');
   };
