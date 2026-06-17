@@ -981,16 +981,65 @@ window.openAreaModal=()=>{renderAreaList();document.getElementById('area-modal-b
 window.closeAreaModal=()=>document.getElementById('area-modal-bg').classList.remove('open');
 
 // ── EXPORT ─────────────────────────────────────────────────────────────────
-window.exportExcel=()=>{
-  if(typeof XLSX==='undefined'){showToast('❌ Librería no disponible');return;}
-  const data=tasks.map(t=>({'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Frecuencia':t.freq||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No'}));
-  const ws=XLSX.utils.json_to_sheet(data);
-  ws['!cols']=[{wch:40},{wch:50},{wch:12},{wch:18},{wch:22},{wch:14},{wch:14},{wch:10},{wch:13},{wch:10}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,'Actividades',ws);
-  XLSX.writeFile(wb,'Seguimiento_Actividades.xlsx');
-  showToast('📥 Excel descargado');
+// Carga SheetJS bajo demanda si el <script> del CDN no quedó disponible.
+function loadSheetJS(){
+  return new Promise((resolve,reject)=>{
+    if(typeof XLSX!=='undefined') return resolve(XLSX);
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    s.onload=()=>resolve(typeof XLSX!=='undefined'?XLSX:null);
+    s.onerror=()=>reject(new Error('No se pudo cargar SheetJS (CDN bloqueado)'));
+    document.head.appendChild(s);
+  });
+}
+
+window.exportExcel=async ()=>{
+  try{
+    const data=tasks.map(t=>({'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Frecuencia':t.freq||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No'}));
+    if(!data.length){showToast('No hay datos para exportar');return;}
+
+    // 1) Intenta SheetJS (CDN principal o carga al vuelo desde alterno)
+    let lib = (typeof XLSX!=='undefined') ? XLSX : null;
+    if(!lib){
+      try { lib = await loadSheetJS(); }
+      catch(e){ console.warn('[export] SheetJS no disponible, uso CSV:', e); }
+    }
+    if(lib){
+      try{
+        const ws=lib.utils.json_to_sheet(data);
+        ws['!cols']=[{wch:40},{wch:50},{wch:12},{wch:18},{wch:22},{wch:14},{wch:14},{wch:14},{wch:10},{wch:13},{wch:10}];
+        const wb=lib.utils.book_new();
+        lib.utils.book_append_sheet(wb,'Actividades',ws);
+        lib.writeFile(wb,'Seguimiento_Actividades.xlsx');
+        showToast('📥 Excel descargado');
+        return;
+      }catch(e){ console.error('[export] Falló XLSX, caigo a CSV:', e); }
+    }
+
+    // 2) Fallback universal: CSV con BOM (sin internet, abre en Excel)
+    exportCSV(data);
+  }catch(err){
+    console.error('[export] Error general:', err);
+    showToast('⚠️ Error al exportar: '+(err && err.message ? err.message : err));
+  }
 };
+
+function exportCSV(data){
+  const headers=Object.keys(data[0]);
+  const esc=v=>{
+    v=(v===null||v===undefined)?'':String(v);
+    return /[",\n\r;]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+  };
+  const rows=[headers.join(','), ...data.map(r=>headers.map(h=>esc(r[h])).join(','))];
+  const csv='\uFEFF'+rows.join('\r\n'); // BOM UTF-8: Excel muestra acentos correctamente
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='Seguimiento_Actividades.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast('📥 Descargado en CSV (se abre en Excel)');
+}
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
 let _tt=null;
