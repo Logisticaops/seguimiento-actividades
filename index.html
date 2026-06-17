@@ -236,8 +236,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
       </select>
     </div>
     <div class="kpi-row" id="kpi-row"></div>
-    <div class="charts-row" id="charts-row"></div>
-    <div class="charts-row" id="resp-row" style="grid-template-columns:1fr;"></div>
+    <div class="charts-row" id="charts-row" style="grid-template-columns:repeat(4,1fr);"></div>
     <div class="charts-row" id="ontime-row" style="grid-template-columns:1fr;"></div>
     <div class="gantt-wrap">
       <div class="gantt-card">
@@ -871,7 +870,8 @@ function renderCharts(){
   document.getElementById('charts-row').innerHTML=`
     <div class="chart-card"><div class="chart-title">Estado de tareas</div>${donut1}</div>
     <div class="chart-card"><div class="chart-title">Distribución por prioridad</div>${donut2}</div>
-    <div class="chart-card"><div class="chart-title">Actividades por área</div>${areaBars}${areaLegend}</div>`;
+    <div class="chart-card"><div class="chart-title">Actividades por área</div>${areaBars}${areaLegend}</div>
+    <div class="chart-card"><div class="chart-title">Tareas por responsable</div><div id="resp-inner"></div></div>`;
 }
 
 function buildDonut(data, total){
@@ -922,13 +922,13 @@ function renderRespChart(){
       </div>
       <span class="bar-h-cnt">${g.total}</span>
     </div>`).join(''):'<div style="color:var(--muted);font-size:.75rem">Sin datos</div>';
-  const legend=`<div style="display:flex;gap:16px;margin-top:10px;font-size:.7rem;color:var(--muted)">
-    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--grn);margin-right:5px;vertical-align:middle"></span>Completadas</span>
-    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:5px;vertical-align:middle"></span>Pendientes</span>
-    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--red);margin-right:5px;vertical-align:middle"></span>Vencidas</span>
+  const legend=`<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:9px;font-size:.66rem;color:var(--muted)">
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--grn);margin-right:4px;vertical-align:middle"></span>Completadas</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:4px;vertical-align:middle"></span>Pendientes</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--red);margin-right:4px;vertical-align:middle"></span>Vencidas</span>
   </div>`;
-  document.getElementById('resp-row').innerHTML=
-    `<div class="chart-card"><div class="chart-title">Tareas por responsable</div>${rows}${legend}</div>`;
+  const el=document.getElementById('resp-inner');
+  if(el) el.innerHTML=`${rows}${legend}`;
 }
 
 function renderOnTime(){
