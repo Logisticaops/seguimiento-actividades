@@ -236,6 +236,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     </div>
     <div class="kpi-row" id="kpi-row"></div>
     <div class="charts-row" id="charts-row"></div>
+    <div class="charts-row" id="resp-row" style="grid-template-columns:1fr;"></div>
     <div class="gantt-wrap">
       <div class="gantt-card">
         <div class="gantt-title">Cronograma de tareas</div>
@@ -675,6 +676,7 @@ function render(){
   renderRespSelects();
   renderKPIs();
   renderCharts();
+  renderRespChart();
   renderGantt();
   renderList();
   renderRecurrentes();
@@ -772,6 +774,41 @@ function buildDonut(data, total){
     </svg>
     <div style="display:flex;flex-direction:column;gap:4px;font-size:.72rem;color:var(--muted)">${legend}</div>
   </div>`;
+}
+
+function renderRespChart(){
+  const src=getDashTasks();
+  const map={};
+  src.forEach(t=>{
+    const r=t.resp||'Sin asignar';
+    if(!map[r]) map[r]={done:0,pend:0,venc:0,total:0};
+    if(t.done) map[r].done++;
+    else if(isVencida(t.date)) map[r].venc++;
+    else map[r].pend++;
+    map[r].total++;
+  });
+  const entries=Object.entries(map).sort((a,b)=>b[1].total-a[1].total);
+  const maxT=Math.max(...entries.map(e=>e[1].total),1);
+  const seg=(v,g)=>g.total?(v/g.total*100):0;
+  const rows=entries.length?entries.map(([r,g])=>`
+    <div class="bar-h-row">
+      <span class="bar-h-lbl" title="${r}">${r}</span>
+      <div class="bar-h-bg" style="height:12px;">
+        <div style="width:${Math.round(g.total/maxT*100)}%;height:100%;display:flex;">
+          <div style="width:${seg(g.done,g)}%;background:var(--grn)" title="Completadas: ${g.done}"></div>
+          <div style="width:${seg(g.pend,g)}%;background:var(--acc)" title="Pendientes: ${g.pend}"></div>
+          <div style="width:${seg(g.venc,g)}%;background:var(--red)" title="Vencidas: ${g.venc}"></div>
+        </div>
+      </div>
+      <span class="bar-h-cnt">${g.total}</span>
+    </div>`).join(''):'<div style="color:var(--muted);font-size:.75rem">Sin datos</div>';
+  const legend=`<div style="display:flex;gap:16px;margin-top:10px;font-size:.7rem;color:var(--muted)">
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--grn);margin-right:5px;vertical-align:middle"></span>Completadas</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:5px;vertical-align:middle"></span>Pendientes</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--red);margin-right:5px;vertical-align:middle"></span>Vencidas</span>
+  </div>`;
+  document.getElementById('resp-row').innerHTML=
+    `<div class="chart-card"><div class="chart-title">Tareas por responsable</div>${rows}${legend}</div>`;
 }
 
 function renderGantt(){
@@ -968,10 +1005,10 @@ document.getElementById('filter-pri').addEventListener('change',renderList);
 document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
-document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
-document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
-document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
-document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderGantt();});
+document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
+document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
+document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
+document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
