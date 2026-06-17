@@ -241,7 +241,18 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     <div class="charts-row" id="ontime-row" style="grid-template-columns:1fr;"></div>
     <div class="gantt-wrap">
       <div class="gantt-card">
-        <div class="gantt-title">Cronograma de tareas</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+          <div class="gantt-title" style="margin-bottom:0;">Cronograma de tareas</div>
+          <select id="dash-sort" style="height:28px;padding:0 8px;border:1px solid var(--bdr);border-radius:6px;font-size:.74rem;font-family:'IBM Plex Sans',sans-serif;color:var(--txt);background:#fff;outline:none;">
+            <option value="date-asc">Ordenar: Límite ↑ (más cercana)</option>
+            <option value="date-desc">Ordenar: Límite ↓ (más lejana)</option>
+            <option value="start-asc">Ordenar: Inicio ↑</option>
+            <option value="prog-desc">Ordenar: Avance ↓</option>
+            <option value="prog-asc">Ordenar: Avance ↑</option>
+            <option value="pri">Ordenar: Prioridad (Alta→Baja)</option>
+            <option value="resp">Ordenar: Responsable (A-Z)</option>
+          </select>
+        </div>
         <div id="gantt-container"></div>
       </div>
     </div>
@@ -264,7 +275,8 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 
   <!-- RECURRENTES -->
   <div class="view-content" id="tab-recurrentes">
-    <div class="rec-wrap" id="recurrentes-list"></div>
+    <div class="tb" style="padding-top:14px;"><input type="text" id="rec-search" placeholder="🔍 Buscar por actividad, responsable o área..."></div>
+    <div class="rec-wrap" id="recurrentes-list" style="padding-top:8px;"></div>
   </div>
 </div>
 
@@ -577,8 +589,11 @@ window.toggleCompletion = async (id, dateKey) => {
 function renderRecurrentes(){
   const el=document.getElementById('recurrentes-list');
   if(!el) return;
-  const diarias=tasks.filter(t=>t.freq==='Diaria');
-  const semanales=tasks.filter(t=>t.freq==='Semanal');
+  const q=(document.getElementById('rec-search')?.value||'').toLowerCase().trim();
+  const match=t=>!q||[t.title,t.resp,t.area].some(v=>(v||'').toLowerCase().includes(q));
+  const prep=arr=>arr.filter(match).sort((a,b)=>(a.resp||'~').localeCompare(b.resp||'~')||(a.title||'').localeCompare(b.title||''));
+  const diarias=prep(tasks.filter(t=>t.freq==='Diaria'));
+  const semanales=prep(tasks.filter(t=>t.freq==='Semanal'));
   const todayStr=today();
   const todayD=new Date(todayStr);
   const dayNames=['L','M','M','J','V','S','D'];
@@ -649,16 +664,18 @@ function renderRecurrentes(){
   };
 
   const groups=[
-    {title:'📆 Diarias',     list:diarias,                              builder:buildDaily},
-    {title:'🗓️ Semanales',   list:semanales,                            builder:buildWeekly},
-    {title:'📅 Quincenales', list:tasks.filter(t=>t.freq==='Quincenal'), builder:t=>buildPeriodCells(t,periodsQuincenal())},
-    {title:'📆 Mensuales',   list:tasks.filter(t=>t.freq==='Mensual'),   builder:t=>buildPeriodCells(t,periodsMonthly())},
-    {title:'🗓️ Anuales',     list:tasks.filter(t=>t.freq==='Anual'),     builder:t=>buildPeriodCells(t,periodsYearly())},
+    {title:'📆 Diarias',     list:diarias,                                    builder:buildDaily},
+    {title:'🗓️ Semanales',   list:semanales,                                  builder:buildWeekly},
+    {title:'📅 Quincenales', list:prep(tasks.filter(t=>t.freq==='Quincenal')), builder:t=>buildPeriodCells(t,periodsQuincenal())},
+    {title:'📆 Mensuales',   list:prep(tasks.filter(t=>t.freq==='Mensual')),   builder:t=>buildPeriodCells(t,periodsMonthly())},
+    {title:'🗓️ Anuales',     list:prep(tasks.filter(t=>t.freq==='Anual')),     builder:t=>buildPeriodCells(t,periodsYearly())},
   ];
   const html=groups.filter(g=>g.list.length).map(g=>
     `<div class="rec-section-title">${g.title}</div><div class="rec-group">${renderGroup(g.list, g.builder)}</div>`
   ).join('');
-  el.innerHTML = html || '<div class="empty">📭 No hay tareas recurrentes. Asigna una frecuencia (Diaria, Semanal, Quincenal, Mensual o Anual) a una tarea para verla aquí.</div>';
+  el.innerHTML = html || (q
+    ? '<div class="empty">🔍 No hay recurrentes que coincidan con la búsqueda.</div>'
+    : '<div class="empty">📭 No hay tareas recurrentes. Asigna una frecuencia (Diaria, Semanal, Quincenal, Mensual o Anual) a una tarea para verla aquí.</div>');
 }
 
 // ── TABS ───────────────────────────────────────────────────────────────────
@@ -963,7 +980,18 @@ function renderOnTime(){
 }
 
 function renderGantt(){
-  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date&&t.freq!=='Diaria'&&t.freq!=='Semanal').slice(0,15);
+  const sortBy=document.getElementById('dash-sort')?.value||'date-asc';
+  const priO={Alta:0,Media:1,Baja:2};
+  const cmp={
+    'date-asc':(a,b)=>a.date.localeCompare(b.date),
+    'date-desc':(a,b)=>b.date.localeCompare(a.date),
+    'start-asc':(a,b)=>(a.startDate||'').localeCompare(b.startDate||''),
+    'prog-desc':(a,b)=>(b.progress||0)-(a.progress||0),
+    'prog-asc':(a,b)=>(a.progress||0)-(b.progress||0),
+    'pri':(a,b)=>((priO[a.pri]??9)-(priO[b.pri]??9))||a.date.localeCompare(b.date),
+    'resp':(a,b)=>((a.resp||'~').localeCompare(b.resp||'~'))||a.date.localeCompare(b.date),
+  }[sortBy]||((a,b)=>a.date.localeCompare(b.date));
+  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date&&t.freq!=='Diaria'&&t.freq!=='Semanal').sort(cmp).slice(0,15);
   if(!tWithDates.length){
     document.getElementById('gantt-container').innerHTML='<div style="color:var(--muted);font-size:.75rem;padding:8px 0">No hay tareas con fecha inicio y fecha límite definidas.</div>';
     return;
@@ -1206,6 +1234,7 @@ window.showToast=msg=>{
 
 document.getElementById('search').addEventListener('input',renderList);
 document.getElementById('filter-pri').addEventListener('change',renderList);
+document.getElementById('rec-search').addEventListener('input',renderRecurrentes);
 document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
@@ -1213,6 +1242,7 @@ document.getElementById('dash-filter-resp').addEventListener('change',()=>{rende
 document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
 document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
 document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
+document.getElementById('dash-sort').addEventListener('change',renderGantt);
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
