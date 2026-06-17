@@ -40,7 +40,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 .tab:hover{color:var(--acc);}
 
 /* KPI CARDS */
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px 24px 0;}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:12px 24px 0;}
 .kpi{background:#fff;border:1px solid var(--bdr);border-radius:9px;padding:10px 14px;}
 .kpi-val{font-size:1.4rem;font-weight:600;font-family:'IBM Plex Mono',monospace;}
 .kpi-lbl{font-size:.63rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:1px;}
@@ -159,24 +159,25 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 
 /* RECURRENTES */
 .rec-wrap{padding:14px 24px 24px;}
-.rec-section-title{font-size:.8rem;font-weight:600;color:var(--pri);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
-.rec-group{display:flex;flex-direction:column;gap:8px;}
-.rec-card{background:#fff;border:1px solid var(--bdr);border-radius:9px;padding:10px 14px;}
-.rec-card-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;}
-.rec-title{font-size:.83rem;font-weight:500;}
-.rec-sub{font-size:.7rem;color:var(--muted);margin-top:2px;}
-.rec-pct{font-size:1.05rem;font-weight:700;font-family:'IBM Plex Mono',monospace;text-align:right;line-height:1.1;}
-.rec-pct-lbl{font-size:.6rem;font-weight:500;color:var(--muted);text-transform:uppercase;}
+.rec-section-title{font-size:.78rem;font-weight:600;color:var(--pri);margin-bottom:6px;margin-top:14px;display:flex;align-items:center;gap:6px;}
+.rec-section-title:first-child{margin-top:0;}
+.rec-group{display:flex;flex-direction:column;gap:5px;}
+.rec-card{background:#fff;border:1px solid var(--bdr);border-radius:8px;padding:7px 14px;display:flex;align-items:center;gap:14px;}
+.rec-info{flex:1;min-width:150px;}
+.rec-title{font-size:.8rem;font-weight:500;line-height:1.2;}
+.rec-sub{font-size:.66rem;color:var(--muted);margin-top:1px;}
 .rec-grid{display:flex;gap:6px;}
-.rec-cell{flex:1;text-align:center;cursor:pointer;user-select:none;border-radius:6px;padding:5px 2px;transition:transform .1s;}
-.rec-cell:hover{transform:scale(1.05);}
-.rec-day{font-size:.62rem;color:var(--muted);margin-bottom:3px;}
-.rec-mark{border-radius:5px;padding:5px 0;font-size:.75rem;font-weight:600;}
-.rec-cell.done .rec-mark{background:var(--grn);color:#fff;}
-.rec-cell.miss .rec-mark{background:var(--red);color:#fff;}
-.rec-cell.today .rec-mark{background:var(--ylw);color:#fff;}
-.rec-cell.future .rec-mark{background:#eef1f5;color:#bbc4cf;cursor:default;}
-.rec-cell.future{cursor:default;}
+.rec-pct{font-size:.95rem;font-weight:700;font-family:'IBM Plex Mono',monospace;display:flex;flex-direction:column;align-items:flex-end;line-height:1;min-width:52px;}
+.rec-pct-lbl{font-size:.54rem;font-weight:500;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+.rc-cell{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;user-select:none;}
+.rc-cell.future{cursor:default;}
+.rc-d{font-size:.57rem;color:var(--muted);}
+.rc-box{width:23px;height:23px;border:1.5px solid #cbd5e1;border-radius:5px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;transition:all .12s;}
+.rc-cell:not(.future):hover .rc-box{border-color:var(--acc);}
+.rc-cell.done .rc-box{background:var(--grn);border-color:var(--grn);}
+.rc-cell.today .rc-box{border-color:var(--ylw);box-shadow:0 0 0 1.5px rgba(201,136,10,.35);}
+.rc-cell.miss .rc-box{border-color:#e4c6c6;}
+.rc-cell.future .rc-box{background:#f4f6f9;border-color:#e8edf3;}
 </style>
 </head>
 <body>
@@ -237,6 +238,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     <div class="kpi-row" id="kpi-row"></div>
     <div class="charts-row" id="charts-row"></div>
     <div class="charts-row" id="resp-row" style="grid-template-columns:1fr;"></div>
+    <div class="charts-row" id="ontime-row" style="grid-template-columns:1fr;"></div>
     <div class="gantt-wrap">
       <div class="gantt-card">
         <div class="gantt-title">Cronograma de tareas</div>
@@ -487,7 +489,8 @@ window.toggleTask = async (id, current) => {
     const histEntry = {who: currentUser.displayName||currentUser.email, at: Date.now(), changes: !current ? 'Estado: Pendiente → Completada' : 'Estado: Completada → Pendiente'};
     const history = [...((t&&t.history)||[]), histEntry];
     const upd = {done:!current, history, updatedAt:Date.now(), updatedBy:currentUser.displayName||currentUser.email};
-    if(!current) upd.progress = 100;
+    if(!current){ upd.progress = 100; upd.completedAt = Date.now(); }
+    else { upd.completedAt = null; }
     await updateDoc(doc(db,'tasks',id), upd);
     showToast(!current?'✅ Completada':'↩️ Reabierta');
   } catch(e){showToast('❌ Error');}
@@ -506,6 +509,58 @@ function getMonday(d){
   const diff=(day===0?-6:1)-day;
   dt.setDate(dt.getDate()+diff);
   return dt.toISOString().slice(0,10);
+}
+
+// Una tarea es recurrente si tiene una frecuencia que se repite (diaria en adelante)
+const FREQ_RECURRENTES=['Diaria','Semanal','Quincenal','Mensual','Anual'];
+function isRecurrente(t){ return FREQ_RECURRENTES.includes(t.freq); }
+
+// Clave de periodo según frecuencia (debe coincidir con las claves guardadas en completions)
+function periodKeyFor(freq, d){
+  if(freq==='Semanal') return getMonday(d);
+  if(freq==='Quincenal'){const m=String(d.getMonth()+1).padStart(2,'0');return `${d.getFullYear()}-${m}-Q${d.getDate()<=15?1:2}`;}
+  if(freq==='Mensual') return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  if(freq==='Anual') return `${d.getFullYear()}`;
+  return d.toISOString().slice(0,10); // Diaria / default
+}
+
+// Generadores de periodos visibles (más antiguo → actual)
+function periodsQuincenal(){
+  const arr=[]; const now=new Date();
+  let y=now.getFullYear(), m=now.getMonth(), q=now.getDate()<=15?1:2;
+  for(let i=0;i<6;i++){
+    arr.unshift({key:`${y}-${String(m+1).padStart(2,'0')}-Q${q}`, label:`${String(m+1).padStart(2,'0')}/Q${q}`});
+    if(q===2){q=1;} else {q=2;m--;if(m<0){m=11;y--;}}
+  }
+  return arr;
+}
+function periodsMonthly(){
+  const names=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const now=new Date(); const arr=[];
+  for(let i=5;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1);arr.push({key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`, label:names[d.getMonth()]});}
+  return arr;
+}
+function periodsYearly(){
+  const y=new Date().getFullYear(); const arr=[];
+  for(let i=2;i>=0;i--) arr.push({key:`${y-i}`, label:`${y-i}`});
+  return arr;
+}
+
+// Construye las celdas (checkbox) y el % de cumplimiento para un set de periodos
+function buildPeriodCells(t, periods){
+  const createdKey = t.createdAt ? periodKeyFor(t.freq, new Date(t.createdAt)) : periods[0].key;
+  const curKey = periods[periods.length-1].key;
+  let completed=0, total=0;
+  const cells=periods.map(p=>{
+    const done=(t.completions||[]).includes(p.key);
+    let cls;
+    if(p.key<createdKey || p.key>curKey) cls='future';
+    else if(p.key<curKey){cls=done?'done':'miss';total++;if(done)completed++;}
+    else {cls=done?'done':'today';total++;if(done)completed++;}
+    const clickable=(cls!=='future')?` onclick="toggleCompletion('${t.id}','${p.key}')"`:'';
+    return `<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${p.label}</div><div class="rc-box">${done?'✓':''}</div></div>`;
+  }).join('');
+  return {cells, pct: total?Math.round(completed/total*100):0};
 }
 
 window.toggleCompletion = async (id, dateKey) => {
@@ -548,9 +603,8 @@ function renderRecurrentes(){
       else if(ds<todayStr) cls=done?'done':'miss';
       else if(ds===todayStr) cls=done?'done':'today';
       else cls='future';
-      const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
       const clickable=ds<=todayStr?` onclick="toggleCompletion('${t.id}','${ds}')"`:'';
-      cells.push(`<div class="rec-cell ${cls}"${clickable}><div class="rec-day">${dayNames[i]}</div><div class="rec-mark">${mark}</div></div>`);
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${dayNames[i]}</div><div class="rc-box">${done?'✓':''}</div></div>`);
     }
     return {cells:cells.join(''), pct};
   };
@@ -569,9 +623,8 @@ function renderRecurrentes(){
       else if(ws<curMonday){ cls=done?'done':'miss'; totalCount++; if(done) completedCount++; }
       else if(ws===curMonday){ cls=done?'done':'today'; totalCount++; if(done) completedCount++; }
       else cls='future';
-      const mark=done?'✓':(cls==='miss'?'✗':(cls==='today'?'○':'-'));
       const clickable=cls!=='future'?` onclick="toggleCompletion('${t.id}','${ws}')"`:'';
-      cells.push(`<div class="rec-cell ${cls}"${clickable}><div class="rec-day">${ws.slice(5).replace('-','/')}</div><div class="rec-mark">${mark}</div></div>`);
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${ws.slice(5).replace('-','/')}</div><div class="rc-box">${done?'✓':''}</div></div>`);
     }
     const pct=totalCount>0?Math.round(completedCount/totalCount*100):0;
     return {cells:cells.join(''), pct};
@@ -583,25 +636,29 @@ function renderRecurrentes(){
       const {cells,pct}=builder(t);
       const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
       const titleEsc=(t.title||'').replace(/</g,'&lt;');
+      const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}`;
       return `<div class="rec-card">
-        <div class="rec-card-hdr">
-          <div>
-            <div class="rec-title">${titleEsc}</div>
-            <div class="rec-sub">${t.resp?'👤 '+t.resp:''}${t.area?' · '+t.area:''}</div>
-          </div>
-          <div class="rec-pct" style="color:${pctColor}">${pct}%<div class="rec-pct-lbl">cumplim.</div></div>
+        <div class="rec-info">
+          <div class="rec-title">${titleEsc}</div>
+          ${sub?`<div class="rec-sub">${sub}</div>`:''}
         </div>
         <div class="rec-grid">${cells}</div>
+        <div class="rec-pct" style="color:${pctColor}">${pct}%<span class="rec-pct-lbl">cumplim.</span></div>
       </div>`;
     }).join('');
   };
 
-  el.innerHTML=`
-    <div class="rec-section-title">📆 Diarias</div>
-    <div class="rec-group">${renderGroup(diarias, buildDaily)}</div>
-    <div class="rec-section-title" style="margin-top:16px;">🗓️ Semanales</div>
-    <div class="rec-group">${renderGroup(semanales, buildWeekly)}</div>
-  `;
+  const groups=[
+    {title:'📆 Diarias',     list:diarias,                              builder:buildDaily},
+    {title:'🗓️ Semanales',   list:semanales,                            builder:buildWeekly},
+    {title:'📅 Quincenales', list:tasks.filter(t=>t.freq==='Quincenal'), builder:t=>buildPeriodCells(t,periodsQuincenal())},
+    {title:'📆 Mensuales',   list:tasks.filter(t=>t.freq==='Mensual'),   builder:t=>buildPeriodCells(t,periodsMonthly())},
+    {title:'🗓️ Anuales',     list:tasks.filter(t=>t.freq==='Anual'),     builder:t=>buildPeriodCells(t,periodsYearly())},
+  ];
+  const html=groups.filter(g=>g.list.length).map(g=>
+    `<div class="rec-section-title">${g.title}</div><div class="rec-group">${renderGroup(g.list, g.builder)}</div>`
+  ).join('');
+  el.innerHTML = html || '<div class="empty">📭 No hay tareas recurrentes. Asigna una frecuencia (Diaria, Semanal, Quincenal, Mensual o Anual) a una tarea para verla aquí.</div>';
 }
 
 // ── TABS ───────────────────────────────────────────────────────────────────
@@ -621,7 +678,7 @@ function checkAlerts() {
   const userName = currentUser.displayName || '';
 
   // Buscar tareas del usuario por email o nombre
-  const misTareas = tasks.filter(t => !t.done && t.resp && (
+  const misTareas = tasks.filter(t => !t.done && !isRecurrente(t) && t.resp && (
     t.resp.toLowerCase() === userEmail.toLowerCase() ||
     t.resp.toLowerCase() === userName.toLowerCase() ||
     userName.toLowerCase().includes(t.resp.toLowerCase()) ||
@@ -672,11 +729,28 @@ function checkAlerts() {
 function today(){return new Date().toISOString().slice(0,10);}
 function isVencida(d){return d && d<today();}
 
+// Fecha local (YYYY-MM-DD) a partir de un timestamp
+function toDateStr(ts){const d=new Date(ts);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// Momento real de cierre: campo completedAt, o se deriva del historial (retroactivo)
+function getCompletedAt(t){
+  if(t.completedAt) return t.completedAt;
+  const h=(t.history||[]).filter(x=>x.changes&&x.changes.includes('→ Completada'));
+  return h.length?h[h.length-1].at:null;
+}
+// 'on' = cerrada en tiempo · 'late' = fuera de tiempo · null = no evaluable
+function onTimeStatus(t){
+  if(!t.done||!t.date) return null;
+  const ca=getCompletedAt(t);
+  if(!ca) return null;
+  return toDateStr(ca)<=t.date ? 'on' : 'late';
+}
+
 function render(){
   renderRespSelects();
   renderKPIs();
   renderCharts();
   renderRespChart();
+  renderOnTime();
   renderGantt();
   renderList();
   renderRecurrentes();
@@ -698,6 +772,7 @@ function getDashTasks(){
   const fp=document.getElementById('dash-filter-pri').value;
   const fe=document.getElementById('dash-filter-est').value;
   return tasks.filter(t=>{
+    if(isRecurrente(t)) return false;
     if(fr&&t.resp!==fr) return false;
     if(fa&&t.area!==fa) return false;
     if(fp&&t.pri!==fp) return false;
@@ -713,12 +788,17 @@ function renderKPIs(){
   const total=src.length, done=src.filter(t=>t.done).length;
   const pend=total-done, venc=src.filter(t=>!t.done&&isVencida(t.date)).length;
   const avgProg=total>0?Math.round(src.reduce((s,t)=>s+(t.progress||0),0)/total):0;
+  const evaluables=src.filter(t=>onTimeStatus(t)!==null);
+  const onTime=evaluables.filter(t=>onTimeStatus(t)==='on').length;
+  const onTimePct=evaluables.length?Math.round(onTime/evaluables.length*100):0;
+  const otColor=onTimePct>=80?'var(--grn)':onTimePct>=50?'var(--ylw)':'var(--red)';
   document.getElementById('kpi-row').innerHTML=`
     <div class="kpi"><div class="kpi-val">${total}</div><div class="kpi-lbl">Total tareas</div></div>
     <div class="kpi"><div class="kpi-val" style="color:var(--grn)">${done}</div><div class="kpi-lbl">Completadas</div></div>
     <div class="kpi"><div class="kpi-val" style="color:var(--acc)">${pend}</div><div class="kpi-lbl">Pendientes</div></div>
     <div class="kpi"><div class="kpi-val" style="color:var(--red)">${venc}</div><div class="kpi-lbl">Vencidas</div></div>
-    <div class="kpi"><div class="kpi-val" style="color:var(--pur)">${avgProg}%</div><div class="kpi-lbl">Avance prom.</div></div>`;
+    <div class="kpi"><div class="kpi-val" style="color:var(--pur)">${avgProg}%</div><div class="kpi-lbl">Avance prom.</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:${otColor}">${evaluables.length?onTimePct+'%':'—'}</div><div class="kpi-lbl">En tiempo</div></div>`;
 }
 
 function renderCharts(){
@@ -736,22 +816,45 @@ function renderCharts(){
   const priData=pris.map(p=>({l:p.l,v:src.filter(t=>t.pri===p.l).length,c:p.c}));
   const donut2=buildDonut(priData,src.length||1);
 
-  // Chart 3: Pendientes por área
+  // Chart 3: Actividades por área (apilado por estado + total)
   const areaMap={};
-  src.filter(t=>!t.done&&t.area).forEach(t=>{areaMap[t.area]=(areaMap[t.area]||0)+1;});
-  const areaEntries=Object.entries(areaMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
-  const maxA=Math.max(...areaEntries.map(e=>e[1]),1);
-  const areaBars=areaEntries.length?areaEntries.map(([a,n])=>`
+  src.filter(t=>t.area).forEach(t=>{
+    if(!areaMap[t.area]) areaMap[t.area]={done:0,pend:0,venc:0,total:0};
+    if(t.done) areaMap[t.area].done++;
+    else if(isVencida(t.date)) areaMap[t.area].venc++;
+    else areaMap[t.area].pend++;
+    areaMap[t.area].total++;
+  });
+  const areaEntries=Object.entries(areaMap).sort((a,b)=>b[1].total-a[1].total).slice(0,8);
+  const maxA=Math.max(...areaEntries.map(e=>e[1].total),1);
+  const aseg=(v,g)=>g.total?(v/g.total*100):0;
+  const areaBars=areaEntries.length?areaEntries.map(([a,g])=>`
     <div class="bar-h-row">
       <span class="bar-h-lbl" title="${a}">${a}</span>
-      <div class="bar-h-bg"><div class="bar-h-fg" style="width:${Math.round(n/maxA*100)}%;background:var(--acc)"></div></div>
-      <span class="bar-h-cnt">${n}</span>
+      <div class="bar-h-bg" style="height:12px;">
+        <div style="width:${Math.round(g.total/maxA*100)}%;height:100%;display:flex;">
+          <div style="width:${aseg(g.done,g)}%;background:var(--grn)" title="Completadas: ${g.done}"></div>
+          <div style="width:${aseg(g.pend,g)}%;background:var(--acc)" title="Pendientes: ${g.pend}"></div>
+          <div style="width:${aseg(g.venc,g)}%;background:var(--red)" title="Vencidas: ${g.venc}"></div>
+        </div>
+      </div>
+      <span class="bar-h-cnt">${g.total}</span>
+    </div>
+    <div style="font-size:.62rem;margin:-2px 0 7px 77px;display:flex;gap:9px;">
+      <span style="color:var(--grn)">✓ ${g.done}</span>
+      <span style="color:var(--acc)">⏳ ${g.pend}</span>
+      <span style="color:var(--red)">⚠ ${g.venc}</span>
     </div>`).join(''):'<div style="color:var(--muted);font-size:.75rem">Sin datos</div>';
+  const areaLegend=areaEntries.length?`<div style="display:flex;gap:12px;margin-top:2px;font-size:.66rem;color:var(--muted)">
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--grn);margin-right:4px;vertical-align:middle"></span>Completadas</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:4px;vertical-align:middle"></span>Pendientes</span>
+    <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--red);margin-right:4px;vertical-align:middle"></span>Vencidas</span>
+  </div>`:'';
 
   document.getElementById('charts-row').innerHTML=`
     <div class="chart-card"><div class="chart-title">Estado de tareas</div>${donut1}</div>
     <div class="chart-card"><div class="chart-title">Distribución por prioridad</div>${donut2}</div>
-    <div class="chart-card"><div class="chart-title">Pendientes por área</div>${areaBars}</div>`;
+    <div class="chart-card"><div class="chart-title">Actividades por área</div>${areaBars}${areaLegend}</div>`;
 }
 
 function buildDonut(data, total){
@@ -809,6 +912,54 @@ function renderRespChart(){
   </div>`;
   document.getElementById('resp-row').innerHTML=
     `<div class="chart-card"><div class="chart-title">Tareas por responsable</div>${rows}${legend}</div>`;
+}
+
+function renderOnTime(){
+  const src=getDashTasks();
+  const evaluables=src.filter(t=>onTimeStatus(t)!==null);
+  const onTime=evaluables.filter(t=>onTimeStatus(t)==='on').length;
+  const late=evaluables.length-onTime;
+  const completedTotal=src.filter(t=>t.done).length;
+  const noDate=completedTotal-evaluables.length; // completadas sin fecha límite o sin fecha de cierre
+  const pct=evaluables.length?Math.round(onTime/evaluables.length*100):0;
+  const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
+  const donut=buildDonut([
+    {l:'En tiempo',v:onTime,c:'var(--grn)'},
+    {l:'Fuera de tiempo',v:late,c:'var(--red)'}
+  ], evaluables.length||1);
+  // Desglose por responsable
+  const byResp={};
+  evaluables.forEach(t=>{const r=t.resp||'Sin asignar'; if(!byResp[r])byResp[r]={on:0,total:0}; byResp[r].total++; if(onTimeStatus(t)==='on')byResp[r].on++;});
+  const respRows=Object.entries(byResp).sort((a,b)=>b[1].total-a[1].total).map(([r,g])=>{
+    const p=Math.round(g.on/g.total*100);
+    const c=p>=80?'var(--grn)':p>=50?'var(--ylw)':'var(--red)';
+    return `<div class="bar-h-row">
+      <span class="bar-h-lbl" title="${r}">${r}</span>
+      <div class="bar-h-bg"><div class="bar-h-fg" style="width:${p}%;background:${c}"></div></div>
+      <span class="bar-h-cnt">${p}%</span>
+    </div>
+    <div style="font-size:.6rem;color:#b0bcc8;margin:-2px 0 6px 77px;">${g.on}/${g.total} en tiempo</div>`;
+  }).join('');
+  const body=evaluables.length?`
+    <div style="display:flex;gap:34px;flex-wrap:wrap;align-items:flex-start;">
+      <div style="display:flex;align-items:center;gap:22px;">
+        ${donut}
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <div style="font-size:1.9rem;font-weight:700;font-family:'IBM Plex Mono',monospace;color:${pctColor};line-height:1">${pct}%</div>
+          <div style="font-size:.7rem;color:var(--muted)">de las tareas cerradas se completaron en tiempo</div>
+          <div style="font-size:.74rem;margin-top:4px;">
+            <span style="color:var(--grn)">● En tiempo: <strong>${onTime}</strong></span>&nbsp;&nbsp;
+            <span style="color:var(--red)">● Fuera de tiempo: <strong>${late}</strong></span>
+          </div>
+          <div style="font-size:.66rem;color:#b0bcc8;">Evaluadas ${evaluables.length} de ${completedTotal} completadas${noDate>0?` · ${noDate} sin fecha límite/cierre`:''}</div>
+        </div>
+      </div>
+      <div style="flex:1;min-width:240px;">
+        <div style="font-size:.66rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:7px;">% En tiempo por responsable</div>
+        ${respRows}
+      </div>
+    </div>`:'<div style="color:var(--muted);font-size:.75rem">Aún no hay tareas completadas con fecha límite para evaluar.</div>';
+  document.getElementById('ontime-row').innerHTML=`<div class="chart-card"><div class="chart-title">Cumplimiento de deadline (tareas cerradas)</div>${body}</div>`;
 }
 
 function renderGantt(){
@@ -888,6 +1039,7 @@ function renderList(){
   const fr=document.getElementById('filter-resp').value;
   const fe=document.getElementById('filter-est').value;
   let list=[...tasks].filter(t=>{
+    if(isRecurrente(t)) return false;
     if(q&&!t.title.toLowerCase().includes(q)&&!(t.note||'').toLowerCase().includes(q)) return false;
     if(fp&&t.pri!==fp) return false;
     if(fa&&t.area!==fa) return false;
@@ -995,7 +1147,10 @@ function loadSheetJS(){
 
 window.exportExcel=async ()=>{
   try{
-    const data=tasks.map(t=>({'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Frecuencia':t.freq||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No'}));
+    const data=tasks.map(t=>{
+      const ots=onTimeStatus(t); const ca=getCompletedAt(t);
+      return {'Título':t.title,'Notas':t.note||'','Prioridad':t.pri,'Área':t.area||'','Responsable':t.resp||'','Frecuencia':t.freq||'','Fecha inicio':t.startDate||'','Fecha límite':t.date||'','% Avance':t.progress||0,'Estado':t.done?'Completada':'Pendiente','Vencida':!t.done&&isVencida(t.date)?'Sí':'No','Fecha cierre':ca?toDateStr(ca):'','Cumplimiento':ots==='on'?'En tiempo':ots==='late'?'Fuera de tiempo':''};
+    });
     if(!data.length){showToast('No hay datos para exportar');return;}
 
     // 1) Intenta SheetJS (CDN principal o carga al vuelo desde alterno)
@@ -1007,7 +1162,7 @@ window.exportExcel=async ()=>{
     if(lib){
       try{
         const ws=lib.utils.json_to_sheet(data);
-        ws['!cols']=[{wch:40},{wch:50},{wch:12},{wch:18},{wch:22},{wch:14},{wch:14},{wch:14},{wch:10},{wch:13},{wch:10}];
+        ws['!cols']=[{wch:40},{wch:50},{wch:12},{wch:18},{wch:22},{wch:14},{wch:14},{wch:14},{wch:10},{wch:13},{wch:10},{wch:13},{wch:16}];
         const wb=lib.utils.book_new();
         lib.utils.book_append_sheet(wb,'Actividades',ws);
         lib.writeFile(wb,'Seguimiento_Actividades.xlsx');
@@ -1054,10 +1209,10 @@ document.getElementById('filter-pri').addEventListener('change',renderList);
 document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
-document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
-document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
-document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
-document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderGantt();});
+document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
+document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
+document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
+document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
