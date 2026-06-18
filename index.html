@@ -182,6 +182,37 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
 .rc-cell.today .rc-box{border-color:var(--ylw);box-shadow:0 0 0 1.5px rgba(201,136,10,.35);}
 .rc-cell.miss .rc-box{border-color:#e4c6c6;}
 .rc-cell.future .rc-box{background:#f4f6f9;border-color:#e8edf3;}
+
+/* CONTRATOS */
+.ct-wrap{padding:8px 24px 24px;}
+.ct-table-card{background:#fff;border:1px solid var(--bdr);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(30,45,61,.06);}
+.ct-scroll{overflow-x:auto;}
+.ct-table{width:100%;border-collapse:collapse;min-width:880px;}
+.ct-table thead th{position:sticky;top:0;background:#f6f8fb;font-size:.63rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;text-align:left;padding:9px 12px;border-bottom:1px solid var(--bdr);white-space:nowrap;cursor:pointer;user-select:none;}
+.ct-table thead th:hover{color:var(--acc);}
+.ct-table thead th .sort-ar{font-size:.6rem;opacity:.5;}
+.ct-table tbody td{padding:8px 12px;border-bottom:1px solid #eef1f5;font-size:.76rem;vertical-align:middle;}
+.ct-table tbody tr:hover{background:#f8fafc;}
+.ct-table tbody tr:last-child td{border-bottom:none;}
+.ct-vendor{font-weight:600;color:var(--txt);}
+.ct-type{display:inline-block;background:#eef2f7;color:var(--pri);padding:2px 8px;border-radius:5px;font-size:.66rem;font-weight:500;white-space:nowrap;}
+.ct-owner{display:inline-flex;align-items:center;gap:4px;font-size:.72rem;color:var(--txt);}
+.ct-cmt{font-size:.7rem;color:var(--muted);max-width:230px;line-height:1.35;}
+.ct-pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:20px;font-size:.65rem;font-weight:600;white-space:nowrap;}
+.ct-ok{background:var(--grn-bg);color:var(--grn);}
+.ct-proc{background:var(--ylw-bg);color:var(--ylw);}
+.ct-bad{background:var(--red-bg);color:var(--red);}
+.ct-na{background:#f0f3f7;color:#94a3b8;}
+.ct-date{font-family:'IBM Plex Mono',monospace;font-size:.7rem;color:var(--txt);white-space:nowrap;}
+.ct-date.soon{color:var(--ylw);font-weight:600;}
+.ct-date.expired{color:var(--red);font-weight:600;}
+.ct-date.none{color:#b0bcc8;}
+.ct-acts{display:flex;gap:2px;justify-content:flex-end;}
+.ct-alert{background:#fff;border:1px solid var(--bdr);border-left:3px solid var(--ylw);border-radius:9px;padding:10px 14px;margin-bottom:8px;}
+.ct-alert.danger{border-left-color:var(--red);}
+.ct-alert-title{font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.ct-alert-items{display:flex;flex-wrap:wrap;gap:5px;}
+.ct-alert-chip{font-size:.68rem;padding:3px 9px;border-radius:6px;background:#f8fafc;border:1px solid var(--bdr);}
 </style>
 </head>
 <body>
@@ -221,6 +252,7 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     <div class="tab active" onclick="switchTab('dashboard')">📊 Dashboard</div>
     <div class="tab" onclick="switchTab('tareas')">📋 Tareas</div>
     <div class="tab" onclick="switchTab('recurrentes')">🔁 Recurrentes</div>
+    <div class="tab" onclick="switchTab('contratos')">📑 Contratos</div>
   </div>
 
   <!-- DASHBOARD -->
@@ -292,6 +324,38 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     </div>
     <div class="rec-wrap" id="recurrentes-list" style="padding-top:8px;"></div>
   </div>
+
+  <!-- CONTRATOS -->
+  <div class="view-content" id="tab-contratos">
+    <div class="tb" style="padding-top:14px;">
+      <input type="text" id="ct-search" placeholder="🔍 Buscar proveedor, responsable o comentario...">
+      <select id="ct-filter-type" style="min-width:130px;"><option value="">Todos los tipos</option></select>
+      <select id="ct-filter-owner" style="min-width:150px;"><option value="">Todos los responsables</option></select>
+      <select id="ct-filter-contract" style="min-width:150px;">
+        <option value="">Todo contrato</option>
+        <option>Completo</option><option>En proceso</option>
+        <option>Sin contrato</option><option>Sin vigencia</option>
+      </select>
+      <select id="ct-filter-venc" style="min-width:140px;">
+        <option value="">Toda vigencia</option>
+        <option value="expired">Vencidos</option>
+        <option value="soon">Por vencer (≤60d)</option>
+        <option value="ok">Vigentes</option>
+      </select>
+      <button class="btn btn-p" onclick="openContractModal()">➕ Nuevo proveedor</button>
+      <button class="btn btn-g" onclick="exportContracts()">⬇️ Excel</button>
+    </div>
+    <div class="kpi-row" id="ct-kpi-row"></div>
+    <div class="charts-row" id="ct-charts-row"></div>
+    <div class="ct-wrap">
+      <div id="ct-alerts"></div>
+      <div class="ct-table-card">
+        <div class="ct-scroll">
+          <table class="ct-table" id="ct-table"></table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- TASK MODAL -->
@@ -327,13 +391,25 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
         <option value="3">Miércoles</option>
         <option value="4">Jueves</option>
         <option value="5">Viernes</option>
-        <option value="6">Sábado</option>
-        <option value="7">Domingo</option>
       </select>
+    </div>
+    <div class="field" id="field-duedom" style="display:none;">
+      <label>Día límite del mes</label>
+      <select id="f-duedom"><option value="">Selecciona el día...</option></select>
+      <span style="font-size:.62rem;color:var(--muted);margin-top:2px;">Si cae en fin de semana, se ajusta al día hábil anterior.</span>
+    </div>
+    <div class="field-row" id="field-dueanual" style="display:none;">
+      <div class="field"><label>Mes límite</label><select id="f-duemonth"><option value="">Mes...</option></select></div>
+      <div class="field"><label>Día</label><select id="f-dueday"><option value="">Día...</option></select></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Fecha inicio</label><input type="date" id="f-start"></div>
       <div class="field"><label>Fecha límite</label><input type="date" id="f-date"></div>
+    </div>
+    <div class="field" id="field-enddate" style="display:none;">
+      <label>Fin de recurrencia (opcional)</label>
+      <input type="date" id="f-enddate">
+      <span style="font-size:.62rem;color:var(--muted);margin-top:2px;">Déjalo vacío para que se repita de forma indefinida.</span>
     </div>
     <div class="field">
       <label>% de avance</label>
@@ -360,6 +436,57 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--txt
     </div>
     <div class="modal-footer">
       <button class="btn btn-p" onclick="closeAreaModal()">Listo</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRACT MODAL -->
+<div class="modal-bg" id="contract-modal-bg">
+  <div class="modal">
+    <h3 id="contract-modal-title">Nuevo proveedor</h3>
+    <div class="field"><label>Proveedor *</label><input id="c-vendor" placeholder="Nombre del proveedor..."></div>
+    <div class="field-row">
+      <div class="field"><label>Tipo</label>
+        <select id="c-type">
+          <option value="">Sin tipo</option>
+          <option>INBOUND</option><option>WH</option><option>Transporte</option>
+          <option>Maniobra</option><option>Consumibles</option><option>Legal</option>
+          <option>Seguridad</option><option>NOMS</option><option>Otro</option>
+        </select>
+      </div>
+      <div class="field"><label>Responsable</label>
+        <input id="c-owner" list="c-owner-list" placeholder="Nombre...">
+        <datalist id="c-owner-list"></datalist>
+      </div>
+    </div>
+    <div class="field-row3">
+      <div class="field"><label>Estatus</label>
+        <select id="c-status">
+          <option value="">—</option>
+          <option>Completo</option><option>En proceso</option>
+          <option>Sin usarse</option><option>Pendiente</option>
+        </select>
+      </div>
+      <div class="field"><label>Contrato</label>
+        <select id="c-contract">
+          <option value="">—</option>
+          <option>Completo</option><option>En proceso</option>
+          <option>Sin contrato</option><option>Sin vigencia</option>
+        </select>
+      </div>
+      <div class="field"><label>Tarifas</label>
+        <select id="c-rates">
+          <option value="">—</option>
+          <option>Completo</option><option>En proceso</option>
+          <option>Sin tarifas</option><option>Sin vigencia</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Fecha de vencimiento</label><input type="date" id="c-venc"></div>
+    <div class="field"><label>Comentarios</label><textarea id="c-comments" placeholder="Notas, pendientes, contexto..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeContractModal()">Cancelar</button>
+      <button class="btn btn-p" onclick="saveContract()">Guardar</button>
     </div>
   </div>
 </div>
@@ -404,6 +531,7 @@ const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 let tasks = [], areas = [], editId = null, unsubTasks = null, unsubAreas = null, currentUser = null;
+let contracts = [], unsubContracts = null, editContractId = null;
 
 // ── AUTH ───────────────────────────────────────────────────────────────────
 window.loginGoogle = async () => {
@@ -413,6 +541,7 @@ window.loginGoogle = async () => {
 window.logout = async () => {
   if(unsubTasks) unsubTasks();
   if(unsubAreas) unsubAreas();
+  if(unsubContracts) unsubContracts();
   await signOut(auth);
 };
 
@@ -426,13 +555,15 @@ onAuthStateChanged(auth, user => {
     document.getElementById('user-name').textContent = user.displayName || user.email;
     listenAreas();
     listenTasks();
+    listenContracts();
   } else {
     currentUser = null;
     document.getElementById('view-app').style.display = 'none';
     document.getElementById('view-login').style.display = 'block';
     if(unsubTasks){unsubTasks();unsubTasks=null;}
     if(unsubAreas){unsubAreas();unsubAreas=null;}
-    tasks=[]; areas=[];
+    if(unsubContracts){unsubContracts();unsubContracts=null;}
+    tasks=[]; areas=[]; contracts=[];
   }
 });
 
@@ -484,6 +615,10 @@ window.saveTask = async () => {
     resp: document.getElementById('f-resp').value.trim(),
     freq: document.getElementById('f-freq').value,
     dueDow: (document.getElementById('f-freq').value==='Semanal' && document.getElementById('f-duedow').value) ? parseInt(document.getElementById('f-duedow').value) : null,
+    dueDom: (document.getElementById('f-freq').value==='Mensual' && document.getElementById('f-duedom').value) ? parseInt(document.getElementById('f-duedom').value) : null,
+    dueMonth: (document.getElementById('f-freq').value==='Anual' && document.getElementById('f-duemonth').value) ? parseInt(document.getElementById('f-duemonth').value) : null,
+    dueDay: (document.getElementById('f-freq').value==='Anual' && document.getElementById('f-dueday').value) ? parseInt(document.getElementById('f-dueday').value) : null,
+    endDate: document.getElementById('f-enddate').value || '',
     startDate: document.getElementById('f-start').value,
     date: document.getElementById('f-date').value,
     progress: parseInt(document.getElementById('f-prog').value)||0,
@@ -495,7 +630,7 @@ window.saveTask = async () => {
       if(prev) data.done = prev.done;
 
       // Build change log
-      const fields = {title:'Título',note:'Notas',pri:'Prioridad',area:'Área',resp:'Responsable',freq:'Frecuencia',startDate:'Inicio',date:'Límite',progress:'Avance'};
+      const fields = {title:'Título',note:'Notas',pri:'Prioridad',area:'Área',resp:'Responsable',freq:'Frecuencia',startDate:'Inicio',date:'Límite',endDate:'Fin recurr.',progress:'Avance'};
       const changes = [];
       Object.entries(fields).forEach(([k,label])=>{
         const oldVal = prev[k]??'';
@@ -566,6 +701,36 @@ function weekAnchorDate(d, dow){
   return a;
 }
 const DOW_NAMES={1:'Lunes',2:'Martes',3:'Miércoles',4:'Jueves',5:'Viernes',6:'Sábado',7:'Domingo'};
+const MONTH_ABBR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTH_NAMES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+// Fecha local desde 'YYYY-MM-DD' (sin desfase UTC)
+function parseYMD(s){const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d);}
+function isBizDay(d){const g=d.getDay();return g>=1&&g<=5;}
+// Inicio de la recurrencia: usa "Fecha inicio"; si no, la fecha de creación
+function recStartStr(t){ if(t.startDate) return t.startDate; if(t.createdAt) return toDateStr(t.createdAt); return today(); }
+function recEndDate(t){ return t.endDate ? parseYMD(t.endDate) : null; }
+// Ajusta una fecha objetivo al día hábil ANTERIOR; si retroceder cruza el periodo, avanza al siguiente hábil dentro del periodo
+function adjustToBizDay(date, periodType){
+  if(isBizDay(date)) return new Date(date);
+  const back=new Date(date); while(!isBizDay(back)) back.setDate(back.getDate()-1);
+  const inPeriod = periodType==='year'
+    ? back.getFullYear()===date.getFullYear()
+    : (back.getMonth()===date.getMonth() && back.getFullYear()===date.getFullYear());
+  if(inPeriod) return back;
+  const fwd=new Date(date); while(!isBizDay(fwd)) fwd.setDate(fwd.getDate()+1);
+  return fwd;
+}
+// Fecha límite (día hábil ajustado) del mes dado para un día-del-mes objetivo
+function monthlyDueDate(year, monthIdx0, dom){
+  const last=new Date(year, monthIdx0+1, 0).getDate();
+  return adjustToBizDay(new Date(year, monthIdx0, Math.min(dom||1,last)), 'month');
+}
+// Fecha límite (día hábil ajustado) del año dado para un mes+día objetivo
+function yearlyDueDate(year, monthIdx0, dom){
+  const last=new Date(year, monthIdx0+1, 0).getDate();
+  return adjustToBizDay(new Date(year, monthIdx0, Math.min(dom||1,last)), 'year');
+}
 
 // Una tarea es recurrente si tiene una frecuencia que se repite (diaria en adelante)
 const FREQ_RECURRENTES=['Diaria','Semanal','Quincenal','Mensual','Anual'];
@@ -651,38 +816,48 @@ function renderRecurrentes(){
   const dayNames=['L','M','M','J','V','S','D'];
 
   const buildDaily=(t)=>{
-    const monday=getMonday(todayD);
-    const cells=[];
+    const monday=localMonday(new Date());          // lunes (local) de la semana actual
+    const startStr=recStartStr(t);
+    const endD=recEndDate(t);
+    const dNames=['L','M','M','J','V'];
+    // % sobre días hábiles del mes en curso (desde el inicio de la recurrencia o el 1° del mes, lo que sea más reciente)
     const monthStart=todayStr.slice(0,7)+'-01';
-    const createdStr0 = t.createdAt ? new Date(t.createdAt).toISOString().slice(0,10) : todayStr;
-    const countStart = createdStr0>monthStart?createdStr0:monthStart;
-    let completedThisMonth=0;
-    (t.completions||[]).forEach(c=>{ if(c>=countStart && c<=todayStr) completedThisMonth++; });
-    const elapsed=Math.max(1, Math.round((todayD-new Date(countStart))/86400000)+1);
-    const pct=Math.round(completedThisMonth/elapsed*100);
-    const createdStr = t.createdAt ? new Date(t.createdAt).toISOString().slice(0,10) : todayStr;
-    for(let i=0;i<7;i++){
+    const countStartStr = startStr>monthStart?startStr:monthStart;
+    let done=0, total=0;
+    const cur=parseYMD(countStartStr), end=parseYMD(todayStr);
+    while(cur<=end){
+      if(isBizDay(cur) && !(endD && cur>endD)){
+        total++;
+        if((t.completions||[]).includes(toDateStr(cur))) done++;
+      }
+      cur.setDate(cur.getDate()+1);
+    }
+    const pct=total?Math.round(done/total*100):0;
+    // Celdas: solo Lun–Vie de la semana actual
+    const cells=[];
+    for(let i=0;i<5;i++){
       const d=new Date(monday); d.setDate(d.getDate()+i);
-      const ds=d.toISOString().slice(0,10);
-      const done=(t.completions||[]).includes(ds);
+      const ds=toDateStr(d);
+      const isDone=(t.completions||[]).includes(ds);
       let cls;
-      if(ds<createdStr) cls='future';
-      else if(ds<todayStr) cls=done?'done':'miss';
-      else if(ds===todayStr) cls=done?'done':'today';
+      if(ds<startStr || (endD && d>endD)) cls='future';
+      else if(ds<todayStr) cls=isDone?'done':'miss';
+      else if(ds===todayStr) cls=isDone?'done':'today';
       else cls='future';
-      const clickable=ds<=todayStr?` onclick="toggleCompletion('${t.id}','${ds}')"`:'';
-      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${dayNames[i]}</div><div class="rc-box">${done?'✓':''}</div></div>`);
+      const clickable=(cls!=='future')?` onclick="toggleCompletion('${t.id}','${ds}')"`:'';
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${dNames[i]}</div><div class="rc-box">${isDone?'✓':''}</div></div>`);
     }
     return {cells:cells.join(''), pct};
   };
 
   const buildWeekly=(t)=>{
-    const dow=t.dueDow||1;                       // día objetivo: 1=Lun..7=Dom
+    const dow=t.dueDow||1;                       // día objetivo: 1=Lun..5=Vie
     const tNow=new Date();
     const tStr=toDateStr(tNow);                   // hoy (local)
+    const endD=recEndDate(t);
     const curAnchor=weekAnchorDate(tNow, dow);    // día objetivo de la semana actual
     const curKey=toDateStr(curAnchor);
-    const createdKey=t.createdAt ? toDateStr(weekAnchorDate(new Date(t.createdAt), dow)) : curKey;
+    const createdKey=toDateStr(weekAnchorDate(parseYMD(recStartStr(t)), dow));
     let completedCount=0, totalCount=0;
     const cells=[];
     for(let i=5;i>=0;i--){
@@ -690,7 +865,7 @@ function renderRecurrentes(){
       const ak=toDateStr(ref);
       const done=(t.completions||[]).includes(ak);
       let cls, evaluable=false;
-      if(ak<createdKey){ cls='future'; }                 // antes de crearse
+      if(ak<createdKey || (endD && ref>endD)){ cls='future'; }   // fuera de la ventana de recurrencia
       else if(ak<curKey){ cls=done?'done':'miss'; evaluable=true; }  // semana pasada
       else {                                             // semana en curso
         if(done){ cls='done'; evaluable=true; }
@@ -698,11 +873,61 @@ function renderRecurrentes(){
         else { cls='today'; }                            // aún por cumplir
       }
       if(evaluable){ totalCount++; if(done) completedCount++; }
-      const clickable=(ak>=createdKey)?` onclick="toggleCompletion('${t.id}','${ak}')"`:'';
+      const clickable=(cls!=='future')?` onclick="toggleCompletion('${t.id}','${ak}')"`:'';
       cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${ak.slice(5).replace('-','/')}</div><div class="rc-box">${done?'✓':''}</div></div>`);
     }
     const pct=totalCount>0?Math.round(completedCount/totalCount*100):0;
     return {cells:cells.join(''), pct};
+  };
+
+  // Mensual: una casilla por mes, con vencimiento = día hábil ajustado del día objetivo
+  const buildMonthly=(t)=>{
+    const dom=t.dueDom||1;
+    const now=new Date();
+    const todayD0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const startD=parseYMD(recStartStr(t));
+    const endD=recEndDate(t);
+    let total=0, done=0;
+    const cells=[];
+    for(let i=5;i>=0;i--){
+      const d=new Date(now.getFullYear(), now.getMonth()-i, 1);
+      const y=d.getFullYear(), mi=d.getMonth();
+      const key=`${y}-${String(mi+1).padStart(2,'0')}`;
+      const due=monthlyDueDate(y, mi, dom);
+      const isDone=(t.completions||[]).includes(key);
+      let cls;
+      if(due<startD || (endD && due>endD)){ cls='future'; }
+      else if(due<todayD0){ cls=isDone?'done':'miss'; total++; if(isDone)done++; }
+      else { if(isDone){cls='done';total++;done++;} else {cls='today';total++;} }
+      const label=`${MONTH_ABBR[mi]} ${String(due.getDate()).padStart(2,'0')}`;
+      const clickable=(cls!=='future')?` onclick="toggleCompletion('${t.id}','${key}')"`:'';
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${label}</div><div class="rc-box">${isDone?'✓':''}</div></div>`);
+    }
+    return {cells:cells.join(''), pct: total?Math.round(done/total*100):0};
+  };
+
+  // Anual: una casilla por año, con vencimiento = día hábil ajustado del mes+día objetivo
+  const buildYearly=(t)=>{
+    const mi=(t.dueMonth||1)-1, dom=t.dueDay||1;
+    const now=new Date(), y0=now.getFullYear();
+    const todayD0=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+    const startD=parseYMD(recStartStr(t));
+    const endD=recEndDate(t);
+    let total=0, done=0;
+    const cells=[];
+    for(let i=2;i>=0;i--){
+      const y=y0-i;
+      const key=`${y}`;
+      const due=yearlyDueDate(y, mi, dom);
+      const isDone=(t.completions||[]).includes(key);
+      let cls;
+      if(due<startD || (endD && due>endD)){ cls='future'; }
+      else if(due<todayD0){ cls=isDone?'done':'miss'; total++; if(isDone)done++; }
+      else { if(isDone){cls='done';total++;done++;} else {cls='today';total++;} }
+      const clickable=(cls!=='future')?` onclick="toggleCompletion('${t.id}','${key}')"`:'';
+      cells.push(`<div class="rc-cell ${cls}"${clickable}><div class="rc-d">${y}</div><div class="rc-box">${isDone?'✓':''}</div></div>`);
+    }
+    return {cells:cells.join(''), pct: total?Math.round(done/total*100):0};
   };
 
   // Filtra (texto/pri/área/resp), construye celdas+pct, filtra por banda de cumplimiento y ordena por responsable
@@ -716,7 +941,12 @@ function renderRecurrentes(){
       const {cells,pct}=built;
       const pctColor=pct>=80?'var(--grn)':pct>=50?'var(--ylw)':'var(--red)';
       const titleEsc=(t.title||'').replace(/</g,'&lt;');
-      const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}${t.freq==='Semanal'&&t.dueDow?` · 📅 ${DOW_NAMES[t.dueDow]}`:''}`;
+      const dueSub = t.freq==='Semanal'&&t.dueDow ? ` · 📅 ${DOW_NAMES[t.dueDow]}`
+        : t.freq==='Mensual'&&t.dueDom ? ` · 📅 día ${t.dueDom} (hábil ant.)`
+        : t.freq==='Anual'&&t.dueMonth&&t.dueDay ? ` · 📅 ${t.dueDay} ${MONTH_ABBR[t.dueMonth-1]}`
+        : '';
+      const endSub = t.endDate ? ` · ⛔ fin ${t.endDate.slice(5).replace('-','/')}` : '';
+      const sub=`${t.resp?'👤 '+t.resp:''}${t.area?(t.resp?' · ':'')+t.area:''}${dueSub}${endSub}`;
       const titleAttr=titleEsc.replace(/'/g,"\\'");
       return `<div class="rec-card">
         <div class="rec-info">
@@ -737,8 +967,8 @@ function renderRecurrentes(){
     {title:'📆 Diarias',     items:buildList(tasks.filter(t=>t.freq==='Diaria'),    buildDaily)},
     {title:'🗓️ Semanales',   items:buildList(tasks.filter(t=>t.freq==='Semanal'),   buildWeekly)},
     {title:'📅 Quincenales', items:buildList(tasks.filter(t=>t.freq==='Quincenal'), t=>buildPeriodCells(t,periodsQuincenal()))},
-    {title:'📆 Mensuales',   items:buildList(tasks.filter(t=>t.freq==='Mensual'),   t=>buildPeriodCells(t,periodsMonthly()))},
-    {title:'🗓️ Anuales',     items:buildList(tasks.filter(t=>t.freq==='Anual'),     t=>buildPeriodCells(t,periodsYearly()))},
+    {title:'📆 Mensuales',   items:buildList(tasks.filter(t=>t.freq==='Mensual'),   buildMonthly)},
+    {title:'🗓️ Anuales',     items:buildList(tasks.filter(t=>t.freq==='Anual'),     buildYearly)},
   ];
   const html=groups.filter(g=>g.items.length).map(g=>
     `<div class="rec-section-title">${g.title}</div><div class="rec-group">${renderGroup(g.items)}</div>`
@@ -751,7 +981,7 @@ function renderRecurrentes(){
 // ── TABS ───────────────────────────────────────────────────────────────────
 window.switchTab = (tab) => {
   document.querySelectorAll('.tab').forEach((t,i)=>{
-    t.classList.toggle('active', ['dashboard','tareas','recurrentes'][i]===tab);
+    t.classList.toggle('active', ['dashboard','tareas','recurrentes','contratos'][i]===tab);
   });
   document.querySelectorAll('.view-content').forEach(v=>{
     v.classList.toggle('active', v.id==='tab-'+tab);
@@ -841,6 +1071,7 @@ function render(){
   renderGantt();
   renderList();
   renderRecurrentes();
+  renderContracts();
 }
 
 function renderRespSelects(){
@@ -1207,6 +1438,342 @@ function renderList(){
   }).join('');
 }
 
+// ── CONTRATOS ──────────────────────────────────────────────────────────────
+let ctSortCol = 'vendor', ctSortDir = 1;
+
+function listenContracts(){
+  unsubContracts = onSnapshot(collection(db,'contracts'), snap => {
+    contracts = snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderContracts();
+  });
+}
+
+function ctStatusClass(v){
+  const s=(v||'').toLowerCase();
+  if(!s) return 'ct-na';
+  if(s.includes('complet')) return 'ct-ok';
+  if(s.includes('proceso')||s.includes('pendiente')) return 'ct-proc';
+  if(s.includes('sin ')||s.includes('vencid')) return 'ct-bad';
+  return 'ct-na';
+}
+function ctBadge(v){ return `<span class="ct-pill ${ctStatusClass(v)}">${v||'—'}</span>`; }
+
+// Estado de vigencia a partir de la fecha de vencimiento
+function ctVencInfo(dateStr){
+  if(!dateStr) return {cls:'none', label:'—', status:'none', days:null};
+  const t=new Date(); t.setHours(0,0,0,0);
+  const d=new Date(dateStr+'T00:00:00');
+  const days=Math.round((d-t)/86400000);
+  const label=`${dateStr.slice(8,10)}/${dateStr.slice(5,7)}/${dateStr.slice(0,4)}`;
+  if(days<0)  return {cls:'expired', label, status:'expired', days};
+  if(days<=60) return {cls:'soon', label, status:'soon', days};
+  return {cls:'', label, status:'ok', days};
+}
+function hasProblem(c){
+  const bad=v=>{const s=(v||'').toLowerCase();return s.includes('sin ')||s.includes('vencid');};
+  return bad(c.contract)||bad(c.rates)||ctVencInfo(c.venc).status==='expired';
+}
+
+function getCtFiltered(){
+  const q=(document.getElementById('ct-search').value||'').toLowerCase().trim();
+  const ft=document.getElementById('ct-filter-type').value;
+  const fo=document.getElementById('ct-filter-owner').value;
+  const fc=document.getElementById('ct-filter-contract').value;
+  const fv=document.getElementById('ct-filter-venc').value;
+  return contracts.filter(c=>{
+    if(q && ![c.vendor,c.owner,c.comments,c.type].some(v=>(v||'').toLowerCase().includes(q))) return false;
+    if(ft && c.type!==ft) return false;
+    if(fo && c.owner!==fo) return false;
+    if(fc && c.contract!==fc) return false;
+    if(fv && ctVencInfo(c.venc).status!==fv) return false;
+    return true;
+  });
+}
+
+window.ctSort = (col) => { if(ctSortCol===col) ctSortDir*=-1; else {ctSortCol=col;ctSortDir=1;} renderContracts(); };
+
+function renderCtSelects(){
+  const baseTypes=['INBOUND','WH','Transporte','Maniobra','Consumibles','Legal','Seguridad','NOMS','Otro'];
+  const types=[...new Set([...baseTypes, ...contracts.map(c=>c.type).filter(Boolean)])];
+  const owners=[...new Set(contracts.map(c=>c.owner).filter(Boolean))].sort();
+  const tEl=document.getElementById('ct-filter-type'); const tp=tEl.value;
+  tEl.innerHTML='<option value="">Todos los tipos</option>'+types.map(t=>`<option${tp===t?' selected':''}>${t}</option>`).join('');
+  const oEl=document.getElementById('ct-filter-owner'); const op=oEl.value;
+  oEl.innerHTML='<option value="">Todos los responsables</option>'+owners.map(o=>`<option${op===o?' selected':''}>${o}</option>`).join('');
+  const dl=document.getElementById('c-owner-list');
+  if(dl) dl.innerHTML=owners.map(o=>`<option value="${o}">`).join('');
+}
+
+function renderContracts(){
+  renderCtSelects();
+  const src=getCtFiltered();
+
+  // KPIs
+  const total=src.length;
+  const compl=src.filter(c=>c.contract==='Completo').length;
+  const proc=src.filter(c=>c.contract==='En proceso').length;
+  const prob=src.filter(hasProblem).length;
+  const soon=src.filter(c=>ctVencInfo(c.venc).status==='soon').length;
+  const exp=src.filter(c=>ctVencInfo(c.venc).status==='expired').length;
+  document.getElementById('ct-kpi-row').innerHTML=`
+    <div class="kpi"><div class="kpi-val">${total}</div><div class="kpi-lbl">Proveedores</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--grn)">${compl}</div><div class="kpi-lbl">Contrato completo</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--ylw)">${proc}</div><div class="kpi-lbl">En proceso</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--red)">${prob}</div><div class="kpi-lbl">Con pendientes</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--ylw)">${soon}</div><div class="kpi-lbl">Por vencer ≤60d</div></div>
+    <div class="kpi"><div class="kpi-val" style="color:var(--red)">${exp}</div><div class="kpi-lbl">Vencidos</div></div>`;
+
+  // Charts: donut contrato, donut tarifas, barra por responsable
+  const statusBuckets=arr=>{
+    const n=v=>arr.filter(c=>c===v).length;
+    const defined=arr.filter(Boolean).length;
+    return [
+      {l:'Completo',v:n('Completo'),c:'var(--grn)'},
+      {l:'En proceso',v:n('En proceso'),c:'var(--ylw)'},
+      {l:'Sin contrato',v:n('Sin contrato'),c:'var(--red)'},
+      {l:'Sin tarifas',v:n('Sin tarifas'),c:'var(--red)'},
+      {l:'Sin vigencia',v:n('Sin vigencia'),c:'#e07a3f'},
+      {l:'Sin definir',v:src.length-defined,c:'#cbd5e1'},
+    ].filter(d=>d.v>0);
+  };
+  const cData=statusBuckets(src.map(c=>c.contract));
+  const rData=statusBuckets(src.map(c=>c.rates));
+  const donutC=buildDonut(cData, src.length||1);
+  const donutR=buildDonut(rData, src.length||1);
+
+  const ownerMap={};
+  src.forEach(c=>{const o=c.owner||'Sin asignar';if(!ownerMap[o])ownerMap[o]={ok:0,total:0};ownerMap[o].total++;if(c.contract==='Completo')ownerMap[o].ok++;});
+  const oEntries=Object.entries(ownerMap).sort((a,b)=>b[1].total-a[1].total);
+  const maxO=Math.max(...oEntries.map(e=>e[1].total),1);
+  const ownerBars=oEntries.length?oEntries.map(([o,g])=>`
+    <div class="bar-h-row">
+      <span class="bar-h-lbl" title="${o}">${o}</span>
+      <div class="bar-h-bg" style="height:11px;">
+        <div style="width:${Math.round(g.total/maxO*100)}%;height:100%;display:flex;">
+          <div style="width:${g.total?g.ok/g.total*100:0}%;background:var(--grn)" title="Completos: ${g.ok}"></div>
+          <div style="width:${g.total?(g.total-g.ok)/g.total*100:0}%;background:var(--acc)" title="Pendientes: ${g.total-g.ok}"></div>
+        </div>
+      </div>
+      <span class="bar-h-cnt">${g.total}</span>
+    </div>`).join(''):'<div style="color:var(--muted);font-size:.75rem">Sin datos</div>';
+
+  document.getElementById('ct-charts-row').innerHTML=`
+    <div class="chart-card"><div class="chart-title">Estado de contratos</div>${donutC}</div>
+    <div class="chart-card"><div class="chart-title">Estado de tarifas</div>${donutR}</div>
+    <div class="chart-card"><div class="chart-title">Proveedores por responsable</div>${ownerBars}
+      <div style="display:flex;gap:12px;margin-top:8px;font-size:.66rem;color:var(--muted)">
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--grn);margin-right:4px;vertical-align:middle"></span>Contrato completo</span>
+        <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--acc);margin-right:4px;vertical-align:middle"></span>Pendiente</span>
+      </div></div>`;
+
+  // Alertas de vencimiento (sobre todos los contratos, no filtrados)
+  const expList=contracts.filter(c=>ctVencInfo(c.venc).status==='expired').sort((a,b)=>(a.venc||'').localeCompare(b.venc||''));
+  const soonList=contracts.filter(c=>ctVencInfo(c.venc).status==='soon').sort((a,b)=>(a.venc||'').localeCompare(b.venc||''));
+  let alertsHtml='';
+  if(expList.length) alertsHtml+=`<div class="ct-alert danger"><div class="ct-alert-title" style="color:var(--red)">🔴 Contratos vencidos (${expList.length})</div><div class="ct-alert-items">${expList.map(c=>`<span class="ct-alert-chip"><strong>${c.vendor}</strong> · ${ctVencInfo(c.venc).label}</span>`).join('')}</div></div>`;
+  if(soonList.length) alertsHtml+=`<div class="ct-alert"><div class="ct-alert-title" style="color:var(--ylw)">🟡 Por vencer en ≤60 días (${soonList.length})</div><div class="ct-alert-items">${soonList.map(c=>{const vi=ctVencInfo(c.venc);return `<span class="ct-alert-chip"><strong>${c.vendor}</strong> · ${vi.label} (${vi.days}d)</span>`;}).join('')}</div></div>`;
+  document.getElementById('ct-alerts').innerHTML=alertsHtml;
+
+  // Tabla
+  const cmpVal=(c)=>({
+    vendor:(c.vendor||'').toLowerCase(), type:(c.type||'~').toLowerCase(), owner:(c.owner||'~').toLowerCase(),
+    status:(c.status||'~').toLowerCase(), contract:(c.contract||'~').toLowerCase(), rates:(c.rates||'~').toLowerCase(),
+    venc:c.venc||'9999'
+  }[ctSortCol]);
+  const sorted=[...src].sort((a,b)=>{const x=cmpVal(a),y=cmpVal(b);return (x<y?-1:x>y?1:0)*ctSortDir;});
+  const ar=col=>ctSortCol===col?`<span class="sort-ar">${ctSortDir>0?'▲':'▼'}</span>`:'';
+  const head=`<thead><tr>
+    <th onclick="ctSort('vendor')">Proveedor ${ar('vendor')}</th>
+    <th onclick="ctSort('type')">Tipo ${ar('type')}</th>
+    <th onclick="ctSort('owner')">Responsable ${ar('owner')}</th>
+    <th onclick="ctSort('status')">Estatus ${ar('status')}</th>
+    <th onclick="ctSort('contract')">Contrato ${ar('contract')}</th>
+    <th onclick="ctSort('rates')">Tarifas ${ar('rates')}</th>
+    <th onclick="ctSort('venc')">Vencimiento ${ar('venc')}</th>
+    <th>Comentarios</th>
+    <th style="text-align:right">Acciones</th>
+  </tr></thead>`;
+  const esc=s=>(s||'').replace(/</g,'&lt;');
+  const rows=sorted.map(c=>{
+    const vi=ctVencInfo(c.venc);
+    const nameAttr=(c.vendor||'').replace(/'/g,"\\'");
+    return `<tr>
+      <td class="ct-vendor">${esc(c.vendor)}</td>
+      <td>${c.type?`<span class="ct-type">${esc(c.type)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
+      <td>${c.owner?`<span class="ct-owner">👤 ${esc(c.owner)}</span>`:'<span style="color:#cbd5e1">—</span>'}</td>
+      <td>${ctBadge(c.status)}</td>
+      <td>${ctBadge(c.contract)}</td>
+      <td>${ctBadge(c.rates)}</td>
+      <td><span class="ct-date ${vi.cls}">${vi.label}</span></td>
+      <td class="ct-cmt">${esc(c.comments)||'<span style="color:#cbd5e1">—</span>'}</td>
+      <td><div class="ct-acts">
+        <button class="ic-btn" onclick="openContractModal('${c.id}')" title="Editar">✏️</button>
+        <button class="ic-btn del" onclick="deleteContract('${c.id}','${nameAttr}')" title="Eliminar">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+  const empty=contracts.length
+    ? '<tr><td colspan="9" class="empty">🔍 Ningún proveedor coincide con los filtros.</td></tr>'
+    : '<tr><td colspan="9" class="empty">📭 Aún no hay proveedores. Agrega uno con “➕ Nuevo proveedor” o importa tu lista con “⬆️ Importar lista”.</td></tr>';
+  document.getElementById('ct-table').innerHTML=head+`<tbody>${rows||empty}</tbody>`;
+
+  // Botón de importación inicial (solo visible cuando la lista está vacía)
+  let impBtn=document.getElementById('ct-import-btn');
+  if(!contracts.length){
+    if(!impBtn){
+      const tb=document.querySelector('#tab-contratos .tb');
+      impBtn=document.createElement('button');
+      impBtn.id='ct-import-btn'; impBtn.className='btn'; impBtn.textContent='⬆️ Importar lista';
+      impBtn.onclick=seedContracts;
+      tb.appendChild(impBtn);
+    }
+  } else if(impBtn){ impBtn.remove(); }
+}
+
+// ── CONTRATOS · CRUD ───────────────────────────────────────────────────────
+window.openContractModal = (id=null) => {
+  editContractId=id;
+  const c=id?contracts.find(x=>x.id===id):null;
+  document.getElementById('contract-modal-title').textContent=id?'Editar proveedor':'Nuevo proveedor';
+  document.getElementById('c-vendor').value=c?c.vendor||'':'';
+  document.getElementById('c-type').value=c?c.type||'':'';
+  document.getElementById('c-owner').value=c?c.owner||'':'';
+  document.getElementById('c-status').value=c?c.status||'':'';
+  document.getElementById('c-contract').value=c?c.contract||'':'';
+  document.getElementById('c-rates').value=c?c.rates||'':'';
+  document.getElementById('c-venc').value=c?c.venc||'':'';
+  document.getElementById('c-comments').value=c?c.comments||'':'';
+  document.getElementById('contract-modal-bg').classList.add('open');
+  setTimeout(()=>document.getElementById('c-vendor').focus(),50);
+};
+window.closeContractModal=()=>{document.getElementById('contract-modal-bg').classList.remove('open');editContractId=null;};
+
+window.saveContract = async () => {
+  const vendor=document.getElementById('c-vendor').value.trim();
+  if(!vendor){alert('El nombre del proveedor es requerido.');return;}
+  const data={
+    vendor,
+    type:document.getElementById('c-type').value,
+    owner:document.getElementById('c-owner').value.trim(),
+    status:document.getElementById('c-status').value,
+    contract:document.getElementById('c-contract').value,
+    rates:document.getElementById('c-rates').value,
+    venc:document.getElementById('c-venc').value,
+    comments:document.getElementById('c-comments').value.trim()
+  };
+  const who=currentUser.displayName||currentUser.email;
+  try{
+    if(editContractId){
+      const prev=contracts.find(x=>x.id===editContractId)||{};
+      const fields={vendor:'Proveedor',type:'Tipo',owner:'Responsable',status:'Estatus',contract:'Contrato',rates:'Tarifas',venc:'Vencimiento',comments:'Comentarios'};
+      const changes=[];
+      Object.entries(fields).forEach(([k,lbl])=>{ if(String(prev[k]??'')!==String(data[k]??'')) changes.push(`${lbl}: "${prev[k]||'—'}" → "${data[k]||'—'}"`); });
+      const history=[...(prev.history||[]), {who, at:Date.now(), changes:changes.length?changes.join(' · '):'Sin cambios'}];
+      await updateDoc(doc(db,'contracts',editContractId), {...data, history, updatedAt:Date.now(), updatedBy:who});
+      showToast('💾 Proveedor actualizado');
+    }else{
+      data.createdAt=Date.now(); data.updatedAt=Date.now(); data.updatedBy=who;
+      data.history=[{who, at:Date.now(), changes:'Registro creado'}];
+      await addDoc(collection(db,'contracts'), data);
+      showToast('✅ Proveedor agregado');
+    }
+    closeContractModal();
+  }catch(e){ console.error(e); showToast('❌ Error al guardar'); }
+};
+
+window.deleteContract = async (id, name) => {
+  if(!confirm(`¿Eliminar a "${name}"?`)) return;
+  try{ await deleteDoc(doc(db,'contracts',id)); showToast('🗑️ Eliminado'); }
+  catch(e){ showToast('❌ Error'); }
+};
+
+window.exportContracts = async () => {
+  const data=getCtFiltered().map(c=>({
+    'Proveedor':c.vendor||'','Tipo':c.type||'','Responsable':c.owner||'','Estatus':c.status||'',
+    'Contrato':c.contract||'','Tarifas':c.rates||'','Vencimiento':c.venc||'',
+    'Vigencia':ctVencInfo(c.venc).status==='expired'?'Vencido':ctVencInfo(c.venc).status==='soon'?'Por vencer':ctVencInfo(c.venc).status==='ok'?'Vigente':'',
+    'Comentarios':c.comments||''
+  }));
+  if(!data.length){showToast('No hay datos para exportar');return;}
+  let lib=(typeof XLSX!=='undefined')?XLSX:null;
+  if(!lib){ try{ lib=await loadSheetJS(); }catch(e){} }
+  if(lib){
+    try{
+      const ws=lib.utils.json_to_sheet(data);
+      ws['!cols']=[{wch:38},{wch:14},{wch:16},{wch:14},{wch:14},{wch:14},{wch:13},{wch:12},{wch:42}];
+      const wb=lib.utils.book_new();
+      lib.utils.book_append_sheet(wb,'Contratos',ws);
+      lib.writeFile(wb,'Seguimiento_Contratos.xlsx');
+      showToast('📥 Excel descargado'); return;
+    }catch(e){}
+  }
+  const headers=Object.keys(data[0]);
+  const esc=v=>{v=(v==null)?'':String(v);return /[",\n\r;]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const csv='\uFEFF'+[headers.join(','),...data.map(r=>headers.map(h=>esc(r[h])).join(','))].join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='Seguimiento_Contratos.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  showToast('📥 Descargado en CSV');
+};
+
+// Importación inicial: carga la lista del Excel a Firestore (solo si está vacía)
+async function seedContracts(){
+  if(contracts.length){ showToast('Ya existen proveedores; importación cancelada'); return; }
+  if(!confirm('Se importarán los proveedores de la lista base. ¿Continuar?')) return;
+  const SEED=[
+    ['CHEP MEXICO','INBOUND','MARIA','','','','',''],
+    ['SERVICIOS AVANZADOS DE MERCADEO','INBOUND','MARIA','','','','',''],
+    ['LOGISTICA LOGER','INBOUND','MARIA','','','','',''],
+    ['LOGISTICA LOGER (3RD PARTY)','INBOUND','MARIA','','','','',''],
+    ['DAMCO LOGISTICS MEXICO','WH','FELIPE','','','','',''],
+    ['KUEHNE + NAGEL','WH','FELIPE','Completo','Completo','Completo','','OK'],
+    ['AIG SEGUROS MEXICO','Legal','','','','','',''],
+    ['TRANSERVICIOS','INBOUND','ARNULFO','En proceso','','','',''],
+    ['CEVA CONTRACT LOGISTICS MEXICO','WH','FELIPE','','','','',''],
+    ['ASSIST CARGO','Seguridad','ARNULFO','En proceso','Sin vigencia','Completo','','Sin contrato actualizado'],
+    ['KUEHNE + NAGEL FORWARDING','Transporte','DANIEL','En proceso','','','','Revisar coments equipo'],
+    ['SUBURBIA','Maniobra','FRANCISCO','','','','','Comparte Francisco'],
+    ['CEVA FREIGHT MANAGEMENT MEXICO','WH','FELIPE','','','','',''],
+    ['SERVICIOS DE CONSULTORIA ADMINISTRATIVA ATK','Consumibles','FELIPE','','','','',''],
+    ['EXTRUIDOS BOLSA POLIETILENO','Consumibles','FELIPE','','','','',''],
+    ['TRAXION TECHNOLOGIES','Transporte','ERICK','Completo','Completo','Completo','','OK'],
+    ['MMC EMPAQUES ESPECIALIZADOS','Consumibles','FELIPE','','','','',''],
+    ['MARCO ANTONIO SANSORES GARCES','Otro','','','','','',''],
+    ['SEEKING INTERNATIONAL MEXICO','INBOUND','MARIA','','','','',''],
+    ['AG TRANSPORTES','Transporte','ERICK','En proceso','Sin contrato','Completo','','SIN CONTRATO'],
+    ['NYCE LABORATORIOS','NOMS','MAURICIO','','','','',''],
+    ['4M GLOBAL SERVICE','Transporte','ERICK','En proceso','Sin contrato','Completo','','SIN CONTRATO'],
+    ['TOCA PALLETS DE MEXICO','Consumibles','FELIPE','','','','',''],
+    ['LOGISTICA DAVIFERTM','Transporte','DANIEL','Sin usarse','','','','Sin contrato actualizado y/o tarifas'],
+    ['ABEL BAUTISTA AREVALO','Maniobra','ERICK','En proceso','Completo','Completo','','TARIFARIO EN EXCEL'],
+    ['JORGE AARON GODINEZ ROMERO (EUREKA)','Maniobra','ERICK','','','','',''],
+    ['BUGAR TRANSPORTES','Transporte','ERICK','En proceso','En proceso','Sin vigencia','','Sin tarifas actualizadas y contrato sin vigencia'],
+    ['PALLETS LM EMBALAJE Y LOGISTICA','Consumibles','FELIPE','','','','',''],
+    ['DMT TECHNOLOGY (53 CARGO)','Transporte','ERICK','Completo','Completo','Completo','',''],
+    ['GLOBALTRANZ MX','INBOUND','MARIA','','','','',''],
+    ['VMC PROJECT MANAGEMENT','WH','DANIEL','En proceso','Sin vigencia','Sin vigencia','','Sin contrato actualizado y/o tarifas'],
+    ['TRANSPORT ONE','INBOUND','MARIA','','','','',''],
+    ['SSA MEXICO HOLDINGS','INBOUND','MARIA','','','','',''],
+    ['ESTAFETA','Transporte','ERICK','Completo','En proceso','Completo','','Sin firma de Fernando'],
+    ['PALOS GARZA','Transporte','ERICK','Completo','Completo','Completo','',''],
+    ['53 CARGO','Transporte','DANIEL','Completo','Completo','Completo','','OK'],
+    ['LARMEX','Transporte','DANIEL','Completo','En proceso','Completo','','Sin firma de Fernando'],
+    ['EUREKA (JORGE AARON)','Maniobra','ERICK','Completo','Completo','Completo','','OK'],
+  ];
+  const who=currentUser.displayName||currentUser.email;
+  showToast('⏳ Importando '+SEED.length+' proveedores...');
+  try{
+    for(const r of SEED){
+      await addDoc(collection(db,'contracts'),{
+        vendor:r[0],type:r[1],owner:r[2],status:r[3],contract:r[4],rates:r[5],venc:r[6],comments:r[7],
+        createdAt:Date.now(),updatedAt:Date.now(),updatedBy:who,
+        history:[{who,at:Date.now(),changes:'Importado de lista base'}]
+      });
+    }
+    showToast('✅ '+SEED.length+' proveedores importados');
+  }catch(e){ console.error(e); showToast('❌ Error al importar (revisa reglas de Firestore)'); }
+}
+
 // ── MODALS ─────────────────────────────────────────────────────────────────
 window.openModal = (id=null) => {
   editId=id;
@@ -1218,7 +1785,12 @@ window.openModal = (id=null) => {
   document.getElementById('f-area').value=t?t.area||'':'';
   document.getElementById('f-resp').value=t?t.resp||'':'';
   document.getElementById('f-freq').value=t?t.freq||'':'';
+  fillDateSelects();
   document.getElementById('f-duedow').value=t&&t.dueDow?String(t.dueDow):'';
+  document.getElementById('f-duedom').value=t&&t.dueDom?String(t.dueDom):'';
+  document.getElementById('f-duemonth').value=t&&t.dueMonth?String(t.dueMonth):'';
+  document.getElementById('f-dueday').value=t&&t.dueDay?String(t.dueDay):'';
+  document.getElementById('f-enddate').value=t?t.endDate||'':'';
   toggleDueDow();
   document.getElementById('f-start').value=t?t.startDate||'':'';
   document.getElementById('f-date').value=t?t.date||'':'';
@@ -1228,9 +1800,22 @@ window.openModal = (id=null) => {
   document.getElementById('modal-bg').classList.add('open');
   setTimeout(()=>document.getElementById('f-title').focus(),50);
 };
+function fillDateSelects(){
+  const days=Array.from({length:31},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('');
+  const dom=document.getElementById('f-duedom');
+  if(dom && dom.options.length<=1) dom.insertAdjacentHTML('beforeend', days);
+  const dday=document.getElementById('f-dueday');
+  if(dday && dday.options.length<=1) dday.insertAdjacentHTML('beforeend', days);
+  const mon=document.getElementById('f-duemonth');
+  if(mon && mon.options.length<=1) mon.insertAdjacentHTML('beforeend', MONTH_NAMES.map((n,i)=>`<option value="${i+1}">${n}</option>`).join(''));
+}
 window.toggleDueDow=()=>{
-  const show=document.getElementById('f-freq').value==='Semanal';
-  document.getElementById('field-duedow').style.display=show?'flex':'none';
+  const f=document.getElementById('f-freq').value;
+  document.getElementById('field-duedow').style.display = f==='Semanal'?'flex':'none';
+  document.getElementById('field-duedom').style.display = f==='Mensual'?'flex':'none';
+  document.getElementById('field-dueanual').style.display = f==='Anual'?'grid':'none';
+  const recurring=['Diaria','Semanal','Quincenal','Mensual','Anual'].includes(f);
+  document.getElementById('field-enddate').style.display = recurring?'flex':'none';
 };
 window.closeModal=()=>{document.getElementById('modal-bg').classList.remove('open');editId=null;};
 
@@ -1325,8 +1910,13 @@ document.getElementById('dash-filter-pri').addEventListener('change',()=>{render
 document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
 document.getElementById('dash-sort').addEventListener('change',renderGantt);
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+document.getElementById('contract-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeContractModal();});
+['ct-search','ct-filter-type','ct-filter-owner','ct-filter-contract','ct-filter-venc'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener(id==='ct-search'?'input':'change',renderContracts);
+});
 document.getElementById('area-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeAreaModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeAreaModal();closeContractModal();}});
 </script>
 </body>
 </html>
