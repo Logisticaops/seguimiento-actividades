@@ -1297,6 +1297,7 @@ function renderOnTime(){
   document.getElementById('ontime-row').innerHTML=`<div class="chart-card"><div class="chart-title">Cumplimiento de deadline (tareas cerradas)</div>${body}</div>`;
 }
 
+let ganttPg={pend:1,term:1};
 function renderGantt(){
   const sortBy=document.getElementById('dash-sort')?.value||'date-asc';
   const priO={Alta:0,Media:1,Baja:2};
@@ -1309,35 +1310,30 @@ function renderGantt(){
     'pri':(a,b)=>((priO[a.pri]??9)-(priO[b.pri]??9))||a.date.localeCompare(b.date),
     'resp':(a,b)=>((a.resp||'~').localeCompare(b.resp||'~'))||a.date.localeCompare(b.date),
   }[sortBy]||((a,b)=>a.date.localeCompare(b.date));
-  const tWithDates=getDashTasks().filter(t=>t.startDate&&t.date&&t.freq!=='Diaria'&&t.freq!=='Semanal').sort(cmp).slice(0,15);
-  if(!tWithDates.length){
-    document.getElementById('gantt-container').innerHTML='<div style="color:var(--muted);font-size:.75rem;padding:8px 0">No hay tareas con fecha inicio y fecha límite definidas.</div>';
+  const base=getDashTasks().filter(t=>t.startDate&&t.date&&t.freq!=='Diaria'&&t.freq!=='Semanal');
+  const cont=document.getElementById('gantt-container');
+  if(!base.length){
+    cont.innerHTML='<div style="color:var(--muted);font-size:.75rem;padding:8px 0">No hay tareas con fecha inicio y fecha límite definidas.</div>';
     return;
   }
-  const allDates=tWithDates.flatMap(t=>[t.startDate,t.date]);
+  // Escala de fechas compartida por ambas secciones (Pendientes y Terminadas)
+  const allDates=base.flatMap(t=>[t.startDate,t.date]);
   let minD=new Date(allDates.reduce((a,b)=>a<b?a:b));
   let maxD=new Date(allDates.reduce((a,b)=>a>b?a:b));
   minD.setDate(minD.getDate()-2); maxD.setDate(maxD.getDate()+2);
-  const span=(maxD-minD)/(1000*60*60*24);
   const todayD=new Date(today());
   const todayPct=Math.max(0,Math.min(100,((todayD-minD)/(maxD-minD))*100));
 
-  const cols=[];
-  let cur=new Date(minD);
-  while(cur<=maxD){
-    cols.push(cur.toISOString().slice(0,10));
-    cur.setDate(cur.getDate()+Math.max(1,Math.floor(span/8)));
-  }
-
   const priGradients={'Alta':'linear-gradient(90deg,#c8303a,#f4a0a0)','Media':'linear-gradient(90deg,#c9880a,#fde68a)','Baja':'linear-gradient(90deg,#19a34a,#a7f3c0)'};
 
-  const rows=tWithDates.map(t=>{
+  const rowHTML=t=>{
     const s=new Date(t.startDate), e=new Date(t.date);
     const left=((s-minD)/(maxD-minD))*100;
     const width=Math.max(1,((e-s)/(maxD-minD))*100);
     const color=t.done?'linear-gradient(90deg,#aab4c0,#d5dae2)':(priGradients[t.pri]||'linear-gradient(90deg,#2d7dd2,#93c5fd)');
     return `<tr>
       <td style="font-size:.72rem;white-space:nowrap;max-width:140px;overflow:hidden;text-overflow:ellipsis;padding:3px 6px;" title="${t.title}">${t.title}</td>
+      <td style="padding:3px 6px;white-space:nowrap;"><span style="font-size:.63rem;background:#f0f3f7;color:var(--muted);padding:2px 8px;border-radius:20px;display:inline-block;max-width:130px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;" title="${t.resp||'Sin asignar'}">${t.resp||'Sin asignar'}</span></td>
       <td style="font-size:.65rem;color:var(--muted);white-space:nowrap;">${t.startDate.slice(5).replace('-','/')}</td>
       <td style="font-size:.65rem;color:var(--muted);white-space:nowrap;">${t.date.slice(5).replace('-','/')}</td>
       <td class="gantt-bar-cell" style="min-width:200px;position:relative;">
@@ -1346,19 +1342,41 @@ function renderGantt(){
       </td>
       <td style="font-size:.65rem;font-family:'IBM Plex Mono',monospace;text-align:right;">${t.progress||0}%</td>
     </tr>`;
-  }).join('');
+  };
 
-  document.getElementById('gantt-container').innerHTML=`
-    <table class="gantt-table">
-      <thead><tr>
-        <th style="min-width:140px">Tarea</th>
-        <th>Inicio</th><th>Límite</th>
-        <th>Cronograma</th>
-        <th>Avance</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  const PER=15;
+  const navBtn=(key,delta,dis)=>`<button onclick="ganttPage('${key}',${delta})" ${dis?'disabled':''} style="width:24px;height:24px;border:1px solid var(--bdr);background:#fff;border-radius:6px;cursor:${dis?'default':'pointer'};color:var(--txt);font-size:1rem;line-height:1;display:inline-flex;align-items:center;justify-content:center;opacity:${dis?'.35':'1'};">${delta<0?'‹':'›'}</button>`;
+
+  const sectionHTML=(list,key,label,accent,accentBg,mark)=>{
+    const np=Math.max(1,Math.ceil(list.length/PER));
+    if(ganttPg[key]>np)ganttPg[key]=np;
+    if(ganttPg[key]<1)ganttPg[key]=1;
+    const pg=ganttPg[key];
+    const slice=list.slice((pg-1)*PER,pg*PER);
+    const pager = np>1 ? `<span style="display:inline-flex;align-items:center;gap:6px;">
+        ${navBtn(key,-1,pg<=1)}
+        <span style="font-size:.62rem;color:var(--muted);min-width:80px;text-align:center;">Página ${pg} de ${np}</span>
+        ${navBtn(key,1,pg>=np)}
+      </span>` : '';
+    const head=`<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 10px;border-radius:7px;background:${accentBg};margin:${key==='term'?'18px 0 6px':'2px 0 6px'};">
+        <span style="font-size:.72rem;font-weight:600;color:${accent};">${mark} ${label} <span style="font-weight:400;opacity:.85;">· ${list.length}</span></span>
+        ${pager}
+      </div>`;
+    const body = list.length
+      ? `<table class="gantt-table"><thead><tr>
+            <th style="min-width:140px">Tarea</th><th>Responsable</th><th>Inicio</th><th>Límite</th><th>Cronograma</th><th>Avance</th>
+          </tr></thead><tbody>${slice.map(rowHTML).join('')}</tbody></table>`
+      : `<div style="color:var(--muted);font-size:.72rem;padding:6px 4px;">Sin tareas en esta sección.</div>`;
+    return head+body;
+  };
+
+  const pend=base.filter(t=>!t.done).sort(cmp);
+  const term=base.filter(t=>t.done).sort(cmp);
+  cont.innerHTML =
+    sectionHTML(pend,'pend','Pendientes','var(--ylw)','var(--ylw-bg)','&#9679;') +
+    sectionHTML(term,'term','Terminadas','var(--grn)','var(--grn-bg)','&#10003;');
 }
+window.ganttPage=function(key,delta){ if(key!=='pend'&&key!=='term')return; ganttPg[key]=(ganttPg[key]||1)+delta; renderGantt(); };
 
 function renderAreaSelects(){
   const selects=['filter-area','f-area','dash-filter-area','rec-filter-area'];
@@ -1955,11 +1973,11 @@ document.getElementById('rec-filter-cumpl').addEventListener('change',renderRecu
 document.getElementById('filter-area').addEventListener('change',renderList);
 document.getElementById('filter-resp').addEventListener('change',renderList);
 document.getElementById('filter-est').addEventListener('change',renderList);
-document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
-document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
-document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
-document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();renderGantt();});
-document.getElementById('dash-sort').addEventListener('change',renderGantt);
+document.getElementById('dash-filter-resp').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();ganttPg={pend:1,term:1};renderGantt();});
+document.getElementById('dash-filter-area').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();ganttPg={pend:1,term:1};renderGantt();});
+document.getElementById('dash-filter-pri').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();ganttPg={pend:1,term:1};renderGantt();});
+document.getElementById('dash-filter-est').addEventListener('change',()=>{renderKPIs();renderCharts();renderRespChart();renderOnTime();ganttPg={pend:1,term:1};renderGantt();});
+document.getElementById('dash-sort').addEventListener('change',()=>{ganttPg={pend:1,term:1};renderGantt();});
 document.getElementById('modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
 document.getElementById('contract-modal-bg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeContractModal();});
 ['ct-search','ct-filter-type','ct-filter-owner','ct-filter-contract','ct-filter-venc'].forEach(id=>{
